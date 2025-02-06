@@ -280,7 +280,7 @@ group_df %>%
 
 ## Model fitting
 
-Models were fitted using the `brms` package [@burkner_brms_2017; @burkner_advanced_2018; @nalborczyk2019]...
+Models were fitted using the `brms` package [@brms2017; @brms2018; @nalborczyk2019]...
 
 ```{r gam, message = FALSE}
 # defining a contrast for condition
@@ -1019,7 +1019,7 @@ group_decoding_scores %>%
     labs(x = "Time (s)", y = "Decoding accuracy (ROC AUC)")
 ```
 
-Now, we want to *test* whether the group-level average decoding accuracy is above chance (i.e., 0.5) at each timestep. We use a similar GAM/GP as previously, but we replace the $\mathrm{Normal}$ likelihood function by a $\mathrm{Beta}$ one.
+Now, we want to *test* whether the group-level average decoding accuracy is above chance (i.e., 0.5) at each timestep. We use a similar GAM/GP as previously, but we replace the $\mathrm{Normal}$ likelihood function by a $\mathrm{Beta}$ one to account for the bounded nature of AUC values (between 0 and 1).
 
 ```{r gam-decoding, message = FALSE}
 # fitting the GAM
@@ -1763,7 +1763,12 @@ Prepare a wrapper `R` package and show how to call it in `Python` and integrate 
 
 ```{r, echo = FALSE}
 # citing the R packages we have used
-cite_packages(output = "paragraph", omit = NULL, out.dir = ".")
+cite_packages(
+    output = "paragraph",
+    # omit = c("permuco", "brms", "reticulate"),
+    omit = c("permuco", "reticulate"),
+    out.dir = "."
+    )
 ```
 
 \newpage

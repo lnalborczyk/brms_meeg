@@ -601,8 +601,7 @@ is indicated by the vertical dashed line.}
 \subsection{Model fitting}\label{model-fitting}
 
 Models were fitted using the \texttt{brms} package
-(\citeproc{ref-burkner_brms_2017}{Bürkner, 2017a},
-\citeproc{ref-burkner_advanced_2018}{2018a};
+(\citeproc{ref-brms2017}{Bürkner, 2017}, \citeproc{ref-brms2018}{2018};
 \citeproc{ref-nalborczyk2019}{Nalborczyk et al., 2019})\ldots{}
 
 \begin{Shaded}
@@ -1021,7 +1020,8 @@ accuracy (ROC AUC). Decoding was performed using MNE-Python.}
 Now, we want to \emph{test} whether the group-level average decoding
 accuracy is above chance (i.e., 0.5) at each timestep. We use a similar
 GAM/GP as previously, but we replace the \(\mathrm{Normal}\) likelihood
-function by a \(\mathrm{Beta}\) one.
+function by a \(\mathrm{Beta}\) one to account for the bounded nature of
+AUC values (between 0 and 1).
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -1321,7 +1321,7 @@ directions}\label{limitations-and-future-directions}
 
 We used R version 4.2.3 (\citeproc{ref-base}{R Core Team, 2023}) and the
 following R packages: brms v. 2.22.0 (\citeproc{ref-brms2017}{Bürkner,
-2017b}, \citeproc{ref-brms2018}{2018b}, \citeproc{ref-brms2021}{2021}),
+2017}, \citeproc{ref-brms2018}{2018}, \citeproc{ref-brms2021}{2021}),
 changepoint v. 2.2.4 (\citeproc{ref-changepoint2022}{Killick et al.,
 2022b}; \citeproc{ref-changepoint2014}{Killick \& Eckley, 2014}),
 grateful v. 0.2.10 (\citeproc{ref-grateful}{Rodriguez-Sanchez \&
@@ -1329,8 +1329,7 @@ Jackson, 2023}), knitr v. 1.45 (\citeproc{ref-knitr2014}{Xie, 2014},
 \citeproc{ref-knitr2015}{2015}, \citeproc{ref-knitr2023}{2023}),
 MetBrewer v. 0.2.0 (\citeproc{ref-MetBrewer}{Mills, 2022}), pakret v.
 0.2.2 (\citeproc{ref-pakret}{Gallou, 2024}), patchwork v. 1.2.0
-(\citeproc{ref-patchwork}{T. L. Pedersen, 2024}), permuco v. 1.1.3
-(\citeproc{ref-permuco}{Frossard \& Renaud, 2021b}), rmarkdown v. 2.29
+(\citeproc{ref-patchwork}{T. L. Pedersen, 2024}), rmarkdown v. 2.29
 (\citeproc{ref-rmarkdown2024}{Allaire et al., 2024};
 \citeproc{ref-rmarkdown2018}{Xie et al., 2018},
 \citeproc{ref-rmarkdown2020}{2020}), scales v. 1.3.0
@@ -1351,24 +1350,13 @@ K., Atkins, A., Wickham, H., Cheng, J., Chang, W., \& Iannone, R.
 (2024). \emph{{rmarkdown}: Dynamic documents for r}.
 \url{https://github.com/rstudio/rmarkdown}
 
-\bibitem[\citeproctext]{ref-burkner_brms_2017}
-Bürkner, P.-C. (2017a). \textbf{Brms} : {An} {{\emph{R}}} {Package} for
-{Bayesian Multilevel Models Using} {{\emph{Stan}}}. \emph{Journal of
-Statistical Software}, \emph{80}(1).
-\url{https://doi.org/10.18637/jss.v080.i01}
-
 \bibitem[\citeproctext]{ref-brms2017}
-Bürkner, P.-C. (2017b). {brms}: An {R} package for {Bayesian} multilevel
+Bürkner, P.-C. (2017). {brms}: An {R} package for {Bayesian} multilevel
 models using {Stan}. \emph{Journal of Statistical Software},
 \emph{80}(1), 1--28. \url{https://doi.org/10.18637/jss.v080.i01}
 
-\bibitem[\citeproctext]{ref-burkner_advanced_2018}
-Bürkner, P.-C. (2018a). Advanced {Bayesian Multilevel Modeling} with the
-{R Package} brms. \emph{The R Journal}, \emph{10}(1), 395.
-\url{https://doi.org/10.32614/RJ-2018-017}
-
 \bibitem[\citeproctext]{ref-brms2018}
-Bürkner, P.-C. (2018b). Advanced {Bayesian} multilevel modeling with the
+Bürkner, P.-C. (2018). Advanced {Bayesian} multilevel modeling with the
 {R} package {brms}. \emph{The R Journal}, \emph{10}(1), 395--411.
 \url{https://doi.org/10.32614/RJ-2018-017}
 
