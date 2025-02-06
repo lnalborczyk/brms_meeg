@@ -1,7 +1,9 @@
-##############################################################################
-# # Functions from https://github.com/GRousselet/onsetsim/blob/main/code/functions.R
-# # Generate permutation distributions of t values for independent groups
-# ## cond1 and cond2 are Nt trials x Nf time frames matrices
+######################################################################################
+# Functions from https://github.com/GRousselet/onsetsim/blob/main/code/functions.R
+# Generate permutation distributions of t values for independent groups
+# cond1 and cond2 are Nt trials x Nf time frames matrices
+######################################################################################
+
 # permtdist <- function(cond1, cond2, Nt, Nf, nboot = 2000){
 #   
 #   st2 <- Nt+1 # index to start condition 2 
@@ -47,28 +49,32 @@
 #   }
 #   perm.tvals
 # }
-# 
-# # Cluster correction
-# 
-# ## Form clusters using binary vector: pvals < alpha
-# ## clusters must be at least 2 time frames
-# cluster.make <- function(x){
-#   y <- rle(x)
-#   cmap <- vector(mode = "numeric", length = 0)
-#   nC <- length(y$values) # number of clusters
-#   indx <- 0 # cluster counter
-#   for(CL in 1:nC){
-#     if(y$values[CL] == 0 || y$lengths[CL] == 1){
-#       val <- 0
-#     } else {
-#       indx <- indx + 1
-#       val <- indx
-#     }
-#     cmap <- c(cmap, rep(val, y$lengths[CL]))
-#   }
-#   cmap
-# }
-# 
+
+# Cluster correction
+# Form clusters using binary vector: pvals < alpha
+# clusters must be at least 2 time frames
+cluster.make <- function (x) {
+    
+    y <- rle(x)
+    cmap <- vector(mode = "numeric", length = 0)
+    nC <- length(y$values) # number of clusters
+    indx <- 0 # cluster counter
+    
+    for (CL in 1:nC) {
+        
+    if(y$values[CL] == 0 || y$lengths[CL] == 1){
+      val <- 0
+    } else {
+      indx <- indx + 1
+      val <- indx
+    }
+    cmap <- c(cmap, rep(val, y$lengths[CL]))
+    }
+    
+    cmap
+    
+}
+
 # ## Save sum for each cluster
 # # values = statistics (t values)
 # # cmap = output from cluster.make
@@ -118,19 +124,31 @@ sim.counter <- function(S, nsim, inc){
 #
 # OUTPUT:
 #   onset   = latency of the first cluster in the units of Xf.
-find_onset <- function(sigmask, Xf, rmzero = TRUE){
-  onset <- NA
-  onset <- try(Xf[which(sigmask)[1]], silent = TRUE)
-  if(rmzero){ # remove un-realistic cluster that includes zero
-    if(is.finite(onset)){
-      if(onset == 0){
-        cmap <- cluster.make(sigmask)
-        cmap[cmap==1] <- 0
-        onset <- Xf[which(sigmask*(cmap>0)>0)[1]]
-      }
+find_onset <- function (sigmask, Xf, rmzero = TRUE) {
+    
+    onset <- NA
+    onset <- try(Xf[which(sigmask)[1]], silent = TRUE)
+    
+    # removing un-realistic clusters that includes zero
+    if (rmzero) {
+        
+        if (is.finite(onset) ) {
+            
+            if (onset == 0) {
+                
+                cmap <- cluster.make(sigmask)
+                cmap[cmap==1] <- 0
+                onset <- Xf[which(sigmask * (cmap>0)>0)[1]]
+                
+            }
+            
+        }
+        
     }
-  }
-  onset
+    
+    # returning the onset
+    return (onset)
+    
 }
 
 # https://www.statology.org/mode-in-r/
@@ -199,4 +217,3 @@ elimna<-function(m){
   }
   e
 }
-
