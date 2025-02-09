@@ -22,7 +22,7 @@ author-note:
   disclosures:
     conflict-of-interest: "The authors have no conflicts of interest to disclose."
     # financial-support: "This study was supported by Grant [Grant Number] from [Funding Source]."
-abstract: "Time-resolved electrophysoiological measurements such as those offered by magneto- or electro-encephalography (M/EEG) provide a unique window onto neural activity underlying cognitive process and how they unfold over time. Typically, we are interested in testing whether such measures differ across conditions and/or groups. The conventional approach consists in conducting mass-univariate statistics followed by some form of multiplicity correction (e.g., FDR, FWER) or cluster-based inference. However, these cluster-based methods have an important downside: they shift the focus of inference from the timepoint to the cluster level, thus preventing any conclusion to be made about the onset and offset of effects (e.g., differences across conditions). Here, we introduce a novel *model-based approch* for analysing one-dimensional M/EEG timeseries such as ERPs or decoding timecourses and their differences across conditions. This approach relies on Bayesian nonparametric multilevel modelling (multilevel generalised additive models or Gaussian processes), which outputs posterior probabililities of the effect being above chance at every timestep/voxel, while naturally taking into account the temporal dependencies and between-subject variability present in such data."
+abstract: "Time-resolved electrophysiological measurements such as those offered by magneto- or electro-encephalography (M/EEG) provide a unique window onto neural activity underlying cognitive process and how they unfold over time. Typically, we are interested in testing whether such measures differ across conditions and/or groups. The conventional approach consists in conducting mass-univariate statistics followed by some form of multiplicity correction (e.g., FDR, FWER) or cluster-based inference. However, these cluster-based methods have an important downside: they shift the focus of inference from the timepoint to the cluster level, thus preventing any conclusion to be made about the onset and offset of effects (e.g., differences across conditions). Here, we introduce a novel *model-based approch* for analysing one-dimensional M/EEG timeseries such as ERPs or decoding timecourses and their differences across conditions. This approach relies on Bayesian nonparametric multilevel modelling (multilevel generalised additive models or Gaussian processes), which outputs posterior probabililities of the effect being above chance at every timestep/voxel, while naturally taking into account the temporal dependencies and between-subject variability present in such data."
 keywords: [EEG, MEG, generalised additive models, gaussian processes, mixed-effects models, Bayesian statistics, brms]
 floatsintext: true
 numbered-lines: true
@@ -56,8 +56,6 @@ format:
     include-in-header:
       - text: |
           \usepackage{mathtools}
-editor_options: 
-  chunk_output_type: console
 ---
 
 ```{r setup, include = FALSE}
@@ -68,7 +66,6 @@ library(tidybayes)
 library(patchwork)
 library(MetBrewer)
 library(grateful)
-library(permuco)
 library(scales)
 library(pakret)
 library(scico)
@@ -104,7 +101,11 @@ In the following, we consider two approaches to modelling the non-linear timecou
 
 ## Previous modelling work
 
-Disentangling overlapping processes [@skukies_brain_2024; @skukies_modelling_2021]... Using Bayes factors [@teichmann2022]...
+Disentangling overlapping processes [@skukies_brain_2024; @skukies_modelling_2021]... Using Bayes factors [@teichmann2022]... Weighting single trials [@pernet2022]...
+
+See <https://www.let.rug.nl/nerbonne/teach/rema-stats-meth-seminar/presentations/Wieling-2014-GAMs.pdf> and <https://www.let.rug.nl/wieling/Statistics/GAM-EEG/lab/>, <https://www.let.rug.nl/wieling/Statistics/GAM-EEG/GAM-EEG.pdf> [@abugaber2023; @meulman2015]...
+
+Recent example of GLM for EEG [@wüllhorst2025; @fischer2013]... "Similar approaches have been successfully applied to EEG time- (Rousselet et al., 2008) and frequency-domain (Cohen and Cavanagh, 2011) data and allow the simultaneous investigation of multiple independent variables while preserving the high temporal resolution of the EEG."... See also [@rousselet2008; @hauk2006]... Example of two-stage regression analysis [individual-level then group-level, 10.1101/2024.04.10.588861, @dunagan2024]...
 
 ## Generalised additive models
 
@@ -159,6 +160,8 @@ $$
 
 where $m$ is a function that specifies the mean for the distribution associated with $\mathbf{x}$. This mapping is essentially the Gaussian process: a systematic association of vectors of arbitrary length with a suitable multi-variate normal distribution.
 
+See also <https://jtimonen.github.io/lgpr-usage/articles/math.html>...
+
 Low-rank approximate Gaussian processes are of main interest in machine learning and statistics due to the high computational demands of exact Gaussian process models [@riutort-mayol_practical_2023]...
 
 ## Objectives
@@ -169,15 +172,17 @@ Low-rank approximate Gaussian processes are of main interest in machine learning
 
 ## M/EEG data simulation
 
+```{=html}
 <!--
 
 For simulating EEG data, see <https://github.com/GRousselet/onsetsim> and <https://github.com/unfoldtoolbox/UnfoldSim.jl>...
 
 -->
+```
 
-Following the approach used by @sassenhagen2019 and @rousselet_using_2025, we simulated EEG data stemming from two conditions, one with noise only, and the other with noise + signal. As in previous studies, the noise was generated by superimposing 50 sinusoids at different frequencies, following an EEG-like spectrum [see details and code in @yeung2004]. As in @rousselet_using_2025, the signal was generated from truncated Gaussian with an objective onset at 160 ms, a peak at 250 ms, and an offset at 342 ms. We simulated this signal for 250 timesteps between 0 and 0.5s, akin to & 500 Hz sampling rate. We simulated such data for a group of 20 participants with 50 trials per participant and condition.
+Following the approach used by @sassenhagen2019 and @rousselet_using_2025, we simulated EEG data stemming from two conditions, one with noise only, and the other with noise + signal. As in previous studies, the noise was generated by superimposing 50 sinusoids at different frequencies, following an EEG-like spectrum [see details and code in @yeung2004]. As in @rousselet_using_2025, the signal was generated from truncated Gaussian with an objective onset at 160 ms, a peak at 250 ms, and an offset at 342 ms. We simulated this signal for 250 timesteps between 0 and 0.5s, akin to a 500 Hz sampling rate. We simulated such data for a group of 20 participants with 50 trials per participant and condition (@fig-eeg).
 
-```{r eeg-group, echo = FALSE, fig.width = 9, fig.cap = "Some ERPs in two conditions with 50 trials each, for a group of 20 participants."}
+```{r fig-eeg, echo = FALSE, fig.width = 9, fig.cap = "Some ERPs in two conditions with 50 trials each, for a group of 20 participants."}
 # importing R version of Matlab code from Yeung et al. (2004)
 source("code/eeg_noise.R")
 
@@ -196,6 +201,9 @@ n_ppt <- 20 # number of participants
 outvar <- 1 # noise variance
 srate <- 500 # sampling rate in Hz
 ronset <- seq(150, 170, 2) # random onset for each participant
+
+# removing raw_df
+if (exists("raw_df") ) rm(raw_df)
 
 for (P in 1:n_ppt) { # for each participant
     
@@ -224,7 +232,7 @@ for (P in 1:n_ppt) { # for each participant
         x = rep(Xf, 2*nrow(cond1) ),
         y = c(c(t(cond1) ), c(t(cond2) ) ),
         trial = c(rep(1:n_trials, each = length(Xf) ), rep(1:n_trials, each = length(Xf) ) ),
-        condition = factor(rep(c("cond1", "cond2"), each = Nf*n_trials) ),
+        condition = factor(rep(c("cond1", "cond2"), each = Nf * n_trials) ),
         participant = paste0("participant_", sprintf("%02d", P) )
         ) %>%
         select(participant, condition, trial, x, y)
@@ -242,32 +250,43 @@ for (P in 1:n_ppt) { # for each participant
     
 }
 
+# converting time from ms to seconds
+raw_df <- raw_df %>%
+    # converting time from ms to seconds
+    mutate(x = x / 1000) %>%
+    # renaming columns
+    rename(time = x, eeg = y)
+
+# defining the true onset and offset in seconds
+true_onset <- 0.160
+true_offset <- 0.342
+
 # plotting the data
 raw_df %>%
-    summarise(y = mean(y), .by = c(participant, condition, x) ) %>%
-    ggplot(aes(x, y, colour = condition) ) +
+    summarise(eeg = mean(eeg), .by = c(participant, condition, time) ) %>%
+    ggplot(aes(x = time, y = eeg, colour = condition) ) +
     geom_hline(yintercept = 0, linetype = 2) +
     geom_vline(xintercept = true_onset, linetype = 2) +
     geom_line(show.legend = FALSE) +
     facet_wrap(~participant) +
-    labs(x = "Time (ms)", y = "EEG signal (a.u.)")
+    labs(x = "Time (s)", y = "EEG signal (a.u.)")
 ```
 
-```{r erp-diff, out.width = "75%", fig.cap = "Group-level average difference between conditions (mean +/- standard error of the mean). The 'true' (population value of the) onset is indicated by the vertical dashed line."}
-# averaging across participants
-group_df <- raw_df %>%
-    pivot_wider(names_from = condition, values_from = y, values_fn = mean) %>%
-    mutate(y_diff = cond2 - cond1) %>%
-    summarise(
-        y_mean = mean(y_diff),
-        y_sem = sd(y_diff) / sqrt(n() ),
-        .by = x
-        ) %>%
-    mutate(lower = y_mean - y_sem, upper = y_mean + y_sem)
+We computed the average of the ERP difference (@fig-erp)...
 
-# plotting the data
-group_df %>%
-    ggplot(aes(x = x, y = y_mean) ) +
+```{r fig-erp, echo = FALSE, out.width = "75%", fig.cap = "Group-level average difference between conditions (mean +/- standard error of the mean). The 'true' (population value of the) onset is indicated by the vertical dashed line."}
+# averaging across participants
+raw_df %>%
+    pivot_wider(names_from = condition, values_from = eeg, values_fn = mean) %>%
+    mutate(eeg_diff = cond2 - cond1) %>%
+    summarise(
+        eeg_mean = mean(eeg_diff),
+        eeg_sem = sd(eeg_diff) / sqrt(n() ),
+        .by = time
+        ) %>%
+    mutate(lower = eeg_mean - eeg_sem, upper = eeg_mean + eeg_sem) %>%
+    # plotting the data
+    ggplot(aes(x = time, y = eeg_mean) ) +
     geom_hline(yintercept = 0, linetype = 2) +
     geom_vline(xintercept = true_onset, linetype = 2) +
     geom_ribbon(
@@ -275,24 +294,29 @@ group_df %>%
         alpha = 0.25, show.legend = FALSE
         ) +
     geom_line(show.legend = FALSE) +
-    labs(x = "Time (ms)", y = "EEG difference (a.u.)")
+    labs(x = "Time (s)", y = "EEG difference (a.u.)")
 ```
 
 ## Model fitting
 
-Models were fitted using the `brms` package [@brms2017; @brms2018; @nalborczyk2019]...
+We then fitted a GAM and GP regression model using the `brms` package [@brms2017; @brms2018; @nalborczyk2019]...
 
 ```{r gam, message = FALSE}
+# averaging across participants
+ppt_df <- raw_df %>%
+    group_by(participant, condition, time) %>%
+    summarise(eeg = mean(eeg) ) %>%
+    # mutate(eeg = as.numeric(scale(x = eeg, scale = FALSE) ) ) %>%
+    ungroup()
+
 # defining a contrast for condition
-contrasts(group_df$condition) <- c(-0.5, 0.5)
+contrasts(ppt_df$condition) <- c(-0.5, 0.5)
 
 # fitting the GAM
 gam <- brm(
     # cubic regression splines with k-1 basis functions
-    # then we should try s(x, participant, bs = "fs")
-    # that is, random factor smooth interactions...
-    y ~ condition + s(x, bs = "cr", k = 20, by = condition),
-    data = group_df,
+    eeg ~ condition + s(time, bs = "cr", k = 10, by = condition),
+    data = ppt_df,
     family = gaussian(),
     iter = 5000,
     chains = 4,
@@ -304,16 +328,35 @@ gam <- brm(
 Now we fit the GP...
 
 ```{r gp, message = FALSE}
+# computing eeg_diff and averaging across participants
+# group_df <- raw_df %>%
+#     group_by(participant, time) %>%
+#     pivot_wider(names_from = condition, values_from = eeg, values_fn = mean) %>%
+#     mutate(eeg_diff = cond2 - cond1) %>%
+#     summarise(eeg_diff = mean(eeg_diff) ) %>%
+#     ungroup()
+
+# see https://betanalpha.github.io/assets/case_studies/gp_part3/part3.html
+# and https://betanalpha.github.io/assets/case_studies/gaussian_processes.html
+gp_priors <- c(
+    set_prior("normal(0, 1)", class = "Intercept"),
+    set_prior("normal(0, 1)", class = "b"),
+    set_prior("exponential(1)", class = "sigma"),
+    set_prior("exponential(1)", class = "sdgp")
+    )
+
 gp_model <- brm(
     # k refers to the number of basis functions for
     # computing Hilbert-space approximate GPs
-    y ~ gp(x, k = 20, by = condition),
     # if k = NA (default), exact GPs are computed
-    # y ~ gp(x, by = condition),
-    data = group_df,
+    # eeg ~ gp(time, by = condition),
+    eeg ~ condition + gp(time, by = condition, k = 20, cov = "exp_quad"),
+    data = ppt_df,
     family = gaussian(),
-    control = list(adapt_delta = 0.99),
-    iter = 5000,
+    # prior = gp_priors,
+    control = list(adapt_delta = 0.99, max_treedepth = 15),
+    backend = "cmdstanr",
+    iter = 2000,
     chains = 4,
     cores = 4,
     file = "models/gp.rds"
@@ -324,21 +367,24 @@ And we plot the posterior predictions...
 
 ```{r gam-preds, echo = FALSE}
 # defining a function to plot posterior predictions
-plot_post_preds <- function (model, data) {
+plot_post_preds <- function (model, data = NULL) {
+    
+    if (is.null(data) ) data <- model$data
     
     post_preds <- conditional_effects(
         x = model,
-        effect = "x:condition",
+        effect = "time:condition",
         method = "posterior_epred",
         re_formula = NULL,
         prob = 0.99
         )[[1]]
   
     post_preds %>%
-        ggplot(aes(x = x, y = y, colour = condition, fill = condition) ) +
+        ggplot(aes(x = time, y = eeg, colour = condition, fill = condition) ) +
+        geom_vline(xintercept = true_onset, linetype = 2) +
         geom_hline(yintercept = 0, linetype = 2) +
         geom_point(
-            data = data %>% summarise(y = mean(y), .by = c(x, condition) ),
+            data = data %>% summarise(eeg = mean(eeg), .by = c(time, condition) ),
             aes(fill = NULL),
             pch = 21, show.legend = FALSE
             ) +
@@ -347,15 +393,14 @@ plot_post_preds <- function (model, data) {
             aes(ymin = lower__, ymax = upper__, colour = NULL),
             alpha = 0.25, show.legend = FALSE
             ) +
-        labs(x = "Time (ms)", y = "EEG signal (a.u.)")
+        labs(x = "Time (s)", y = "EEG signal (a.u.)")
   
 }
 ```
 
 ```{r gam-gp-preds, fig.width = 8, fig.asp = 0.5, fig.cap = "Posterior predictions of the GAM (left) and GP (right) models."}
 # plotting the posterior predictions
-plot_post_preds(model = gam, data = group_df) +
-    plot_post_preds(model = gp_model, data = group_df)
+plot_post_preds(model = gam) + plot_post_preds(model = gp_model)
 ```
 
 ## Posterior probability of difference above 0
@@ -366,26 +411,29 @@ We can retrieve the posterior probability of the slope for `condition` at each t
 # check posterior_smooths()?
 # https://www.rdocumentation.org/packages/brms/versions/2.22.0/topics/posterior_smooths.brmsfit
 # defining a function to plot posterior slope
-plot_post_slope <- function (model, data, eps = 0.1) {
+plot_post_slope <- function (model, data = NULL, eps = 0.1) {
   
-  # defining a sequence of x values to make predictions
-  x_seq <- crossing(
-      x = seq(min(data$x), max(data$x), length.out = 100),
-      condition = c("cond1", "cond2")
-      ) %>%
-      arrange(condition)
-  
-  # retrieving posterior samples
-  posterior_samples <- posterior_epred(object = model, newdata = x_seq)
-  
-  # computing the difference between cond2 and cond1
-  posterior_samples <- posterior_samples[, 101:200] - posterior_samples[, 1:100] 
-  
-  # computing the probability that y is above 0
-  prob_y_above_0 <- data.frame(
-      x = seq(min(data$x), max(data$x), length.out = 100)
-      ) %>%
-      mutate(
+    # if no data is specified, use model$data
+    if (is.null(data) ) data <- model$data
+    
+    # defining a sequence of time values to make predictions
+    time_seq <- crossing(
+        time = seq(min(data$time), max(data$time), length.out = 100),
+        condition = c("cond1", "cond2")
+        ) %>%
+        arrange(condition)
+    
+    # retrieving posterior samples
+    posterior_samples <- posterior_epred(object = model, newdata = time_seq)
+    
+    # computing the difference between cond2 and cond1
+    posterior_samples <- posterior_samples[, 101:200] - posterior_samples[, 1:100] 
+    
+    # computing the probability that y is above 0
+    prob_y_above_0 <- data.frame(
+        time = seq(min(data$time), max(data$time), length.out = 100)
+        ) %>%
+        mutate(
           m = colMeans(posterior_samples),
           lower = apply(
               X = posterior_samples,
@@ -396,45 +444,48 @@ plot_post_slope <- function (model, data, eps = 0.1) {
               MARGIN = 2, FUN = quantile, probs = 0.975
               )
           )
-  
-  # plotting it
-  prob_y_above_0 %>%
-        ggplot(aes(x = x, y = m) ) +
+    
+    # plotting it
+    prob_y_above_0 %>%
+        ggplot(aes(x = time, y = m) ) +
         geom_hline(yintercept = 0, linetype = 2) +
+        geom_vline(xintercept = true_onset, linetype = 2) +
         geom_line() +
         geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
-        # theme_light(base_size = 12) +
-        labs(x = "Time (ms)", y = expression(Pr(beta~"|"~data, model) ) )
+        labs(x = "Time (s)", y = expression(Pr(beta~"|"~data, model) ) )
   
 }
 
 # using the function with model
-plot_post_slope(model = gam, data = group_df, eps = 0.1) +
-    plot_post_slope(model = gp_model, data = group_df, eps = 0.1)
+plot_post_slope(model = gam, eps = 0.1) +
+    plot_post_slope(model = gp_model, eps = 0.1)
 ```
 
 We can also compute the posterior probability of the slope for `condition` being above 0 (@fig-post-prob-test).
 
 ```{r fig-post-prob-test, echo = FALSE, fig.width = 8, fig.asp = 0.5, fig.cap = "Posterior probability of the EEG signal being above 0+eps according to the GAM (left) and the GP (right)."}
 # defining a function to plot posterior prob of slope above 0
-plot_post_test <- function (model, data, eps = 0.1) {
+plot_post_test <- function (model, data = NULL, eps = 0.1) {
     
-    # defining a sequence of x values to make predictions
-    x_seq <- crossing(
-        x = seq(min(data$x), max(data$x), length.out = 100),
+    # if no data is specified, use model$data
+    if (is.null(data) ) data <- model$data
+    
+    # defining a sequence of time values to make predictions
+    time_seq <- crossing(
+        time = seq(min(data$time), max(data$time), length.out = 100),
         condition = c("cond1", "cond2")
         ) %>%
         arrange(condition)
   
     # retrieving posterior samples
-    posterior_samples <- posterior_epred(object = model, newdata = x_seq)
+    posterior_samples <- posterior_epred(object = model, newdata = time_seq)
     
     # computing the difference between cond2 and cond1
     posterior_samples <- posterior_samples[, 101:200] - posterior_samples[, 1:100]
     
     # computing the probability that y is above 0
     prob_y_above_0 <- data.frame(
-        x = x_seq$x,
+        time = time_seq$time,
         m = colMeans(posterior_samples > (0 + eps) ),
         lower = apply(
             X = posterior_samples > (0 + eps),
@@ -448,49 +499,42 @@ plot_post_test <- function (model, data, eps = 0.1) {
     
     # plotting it
     prob_y_above_0 %>%
-    ggplot(aes(x = x, y = m) ) +
+    ggplot(aes(x = time, y = m) ) +
     geom_hline(yintercept = 0.5, linetype = 2) +
+    geom_vline(xintercept = true_onset, linetype = 2) +
+    geom_vline(xintercept = true_offset, linetype = 2) +
     geom_line() +
-    # geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
-    # theme_light(base_size = 12) +
-    # labs(x = "Time (ms)", y = "Pr(EEG>0)|data)")
-    labs(x = "Time (ms)", y = expression(Pr(beta>0~"|"~data, model) ) )
+    labs(x = "Time (s)", y = expression(Pr(beta>0~"|"~data, model) ) )
   
 }
 
 # using the function with the two models
-plot_post_test(model = gam, data = group_df, eps = 0.1) +
-    plot_post_test(model = gp_model, data = group_df, eps = 0.1)
+plot_post_test(model = gam, eps = 0.1) +
+    plot_post_test(model = gp_model, eps = 0.1)
 ```
 
-We can also express this as the ratio of posterior probabilities (i.e., $p/(1-p)$) and visualise the timecourse of this ratio superimposed with the conventional BF thresholds (@fig-post-prob-ratio).
+We can also express this as the ratio of posterior probabilities (i.e., $p/(1-p)$) and visualise the timecourse of this ratio superimposed with the conventional BF thresholds (@fig-post-prob-ratio). Also check this paper (<https://link.springer.com/article/10.3758/s13428-021-01613-6?fromPaywallRec=false>)?
 
 ```{r fig-post-prob-ratio, echo = FALSE, fig.width = 8, fig.asp = 0.5, fig.cap = "Ratio of posterior probability according to the GAM (left) and the GP (right). Timesteps above threshold (>10) are highlighted in green."}
 # defining a sequence of x values to make predictions
 n_approx <- 1000
-x_seq <- crossing(
-    x = seq(min(group_df$x), max(group_df$x), length.out = n_approx),
+time_seq <- crossing(
+    time = seq(min(ppt_df$time), max(ppt_df$time), length.out = n_approx),
     condition = c("cond1", "cond2")
     ) %>%
     arrange(condition)
 
 # retrieving posterior samples
-posterior_samples <- posterior_epred(object = gam, newdata = x_seq)
+posterior_samples <- posterior_epred(object = gam, newdata = time_seq)
 
 # computing the difference between cond2 and cond1
 posterior_samples <- posterior_samples[, (ncol(posterior_samples)/2+1):ncol(posterior_samples)] -
     posterior_samples[, 1:(ncol(posterior_samples)/2)]
 
-# sanity checks
-# ts.plot(colMeans(posterior_samples) )
-# ts.plot(apply(X = posterior_samples, MARGIN = 2, FUN = mean) )
-# ts.plot(apply(X = posterior_samples, MARGIN = 2, FUN = sd) )
-# mean(apply(X = posterior_samples, MARGIN = 2, FUN = sd) )
-
 # computing the probability that y is above 0
 eps <- 0.05
 prob_y_above_0 <- data.frame(
-    x = seq(min(group_df$x), max(group_df$x), length.out = n_approx)
+    time = seq(min(ppt_df$time), max(ppt_df$time), length.out = n_approx)
     ) %>%
     mutate(post_prob = colMeans(posterior_samples) ) %>%
     mutate(m = colMeans(posterior_samples > eps) ) %>%
@@ -502,19 +546,19 @@ prob_y_above_0 <- data.frame(
 threshold <- 10
 exceeding_times_gam <- prob_y_above_0 %>%
     dplyr::filter(prob_ratio > threshold) %>%
-    summarise(cluster_onset = min(x), cluster_offset = max(x) ) %>%
+    summarise(cluster_onset = min(time), cluster_offset = max(time) ) %>%
     mutate(
         cluster_peak = prob_y_above_0 %>%
             dplyr::filter(post_prob == max(post_prob) ) %>%
-            pull(x)
+            pull(time)
         ) %>%
-    mutate(true_onset = 160, true_peak = 250, true_offset = 342) %>%
+    mutate(true_onset = 0.160, true_peak = 0.250, true_offset = 0.342) %>%
     mutate(model = "GAM")
     
 # plotting it
 gam_ratio_plot <- prob_y_above_0 %>%
     mutate(above_thres = ifelse(prob_ratio > threshold, 1, NA) ) %>%
-    ggplot(aes(x = x, y = prob_ratio) ) +
+    ggplot(aes(x = time, y = prob_ratio) ) +
     geom_hline(yintercept = 1, linetype = "dashed") +
     geom_hline(yintercept = 3, linetype = "dashed", color = "darkred") +
     geom_hline(yintercept = 1/3, linetype = "dashed", color = "darkred") +
@@ -522,6 +566,8 @@ gam_ratio_plot <- prob_y_above_0 %>%
     geom_hline(yintercept = 1/10, linetype = "dashed", color = "red") +
     geom_hline(yintercept = 100, linetype = "dashed", color = "orangered") +
     geom_hline(yintercept = 1/100, linetype = "dashed", color = "orangered") +
+    geom_vline(xintercept = true_onset, linetype = 2) +
+    geom_vline(xintercept = true_offset, linetype = 2) +
     geom_line() +
     geom_point(
         data = . %>% dplyr::filter(!is.na(above_thres) ),
@@ -533,21 +579,20 @@ gam_ratio_plot <- prob_y_above_0 %>%
         ) +
     scale_y_log10(labels = label_log(digits = 2), limits = c(NA, 1e4) ) +
     labs(
-        x = "Time (ms)",
-        y = expression(Pr(beta>0~"|"~data, model) / (1 - Pr(beta>0~"|"~data) ) )
+        x = "Time (s)",
+        y = expression(Pr(beta>0~"|"~data) / (1 - Pr(beta>0~"|"~data) ) )
         )
 
 # retrieving posterior samples
-posterior_samples <- posterior_epred(object = gp_model, newdata = x_seq)
+posterior_samples <- posterior_epred(object = gp_model, newdata = time_seq)
 
 # computing the difference between cond2 and cond1
 posterior_samples <- posterior_samples[, (ncol(posterior_samples)/2+1):ncol(posterior_samples)] -
     posterior_samples[, 1:(ncol(posterior_samples)/2)]
 
 # computing the probability that y is above 0
-eps <- 0.05
 prob_y_above_0 <- data.frame(
-    x = seq(min(group_df$x), max(group_df$x), length.out = n_approx)
+    time = seq(min(ppt_df$time), max(ppt_df$time), length.out = n_approx)
     ) %>%
     mutate(post_prob = colMeans(posterior_samples) ) %>%
     mutate(m = colMeans(posterior_samples > eps) ) %>%
@@ -555,23 +600,22 @@ prob_y_above_0 <- data.frame(
 
 # printing the identified clusters
 # the signal was a truncated Gaussian defining an objective onset at 160 ms,
-# a maximum at 250 ms, and an offset at 342 ms.
-threshold <- 10
+# a maximum at 250 ms, and an offset at 342 ms
 exceeding_times_gp <- prob_y_above_0 %>%
     dplyr::filter(prob_ratio > threshold) %>%
-    summarise(cluster_onset = min(x), cluster_offset = max(x) ) %>%
+    summarise(cluster_onset = min(time), cluster_offset = max(time) ) %>%
     mutate(
         cluster_peak = prob_y_above_0 %>%
             dplyr::filter(post_prob == max(post_prob) ) %>%
-            pull(x)
+            pull(time)
         ) %>%
-    mutate(true_onset = 160, true_peak = 250, true_offset = 342) %>%
+    mutate(true_onset = 0.160, true_peak = 0.250, true_offset = 0.342) %>%
     mutate(model = "GP")
 
 # plotting it
 gp_ratio_plot <- prob_y_above_0 %>%
     mutate(above_thres = ifelse(prob_ratio > threshold, 1, NA) ) %>%
-    ggplot(aes(x = x, y = prob_ratio) ) +
+    ggplot(aes(x = time, y = prob_ratio) ) +
     geom_hline(yintercept = 1, linetype = "dashed") +
     geom_hline(yintercept = 3, linetype = "dashed", color = "darkred") +
     geom_hline(yintercept = 1/3, linetype = "dashed", color = "darkred") +
@@ -579,6 +623,8 @@ gp_ratio_plot <- prob_y_above_0 %>%
     geom_hline(yintercept = 1/10, linetype = "dashed", color = "red") +
     geom_hline(yintercept = 100, linetype = "dashed", color = "orangered") +
     geom_hline(yintercept = 1/100, linetype = "dashed", color = "orangered") +
+    geom_vline(xintercept = true_onset, linetype = 2) +
+    geom_vline(xintercept = true_offset, linetype = 2) +
     geom_line() +
     geom_point(
         data = . %>% dplyr::filter(!is.na(above_thres) ),
@@ -590,8 +636,8 @@ gp_ratio_plot <- prob_y_above_0 %>%
         ) +
     scale_y_log10(labels = label_log(digits = 2), limits = c(NA, 1e4) ) +
     labs(
-        x = "Time (ms)",
-        y = expression(Pr(beta>0~"|"~data, model) / (1 - Pr(beta>0~"|"~data) ) )
+        x = "Time (s)",
+        y = expression(Pr(beta>0~"|"~data) / (1 - Pr(beta>0~"|"~data) ) )
         )
 
 # plotting results for the two models
@@ -607,13 +653,15 @@ gam_ratio_plot + gp_ratio_plot
 
 ## Error properties of the proposed approach
 
-Below we are plotting the error function (where the error is computed as $|\hat{\theta}-\theta|$) for both the onset and offset values of the ERP difference, according to various `eps` and `threshold` values. Remember that the signal is generated from a truncated Gaussian defining an objective onset at 160 ms, a maximum at 250 ms, and an offset at 342 ms. @fig-onset-error shows that the GP model can *exactly* recover the true onset and offset values, given some reasonable choice of `eps` and `threshold` values.
+Below we are plotting the error function (where the error is computed as $\text{error}:=|\hat{\theta}-\theta|$) for both the onset and offset values of the ERP difference, according to various `eps` and `threshold` values. Remember that the signal is generated from a truncated Gaussian defining an objective onset at 160 ms, a maximum at 250 ms, and an offset at 342 ms. @fig-onset-error shows that the GP model can *exactly* recover the true onset and offset values, given some reasonable choice of `eps` and `threshold` values.
 
 ```{r fig-onset-error, echo = FALSE, dpi = 300, fig.width = 8, fig.asp = 0.5, fig.cap = "Error function of onset (left) and offset (right) estimation according to various eps and threshold values (according to the GP model). Minimum error values are indicated by red crosses."}
 # defining values of eps and threshold to test
 eps_values <- seq(from = 0, to = 0.2, by = 0.01)
 threshold_values <- seq(from = 1, to = 50, by = 1)
-n_approx <- n_distinct(group_df$x)
+
+# using as many values of time as in the original data
+n_approx <- n_distinct(ppt_df$time)
 
 # initialising results dataframe
 results <- crossing(eps = eps_values, threshold = threshold_values) %>%
@@ -622,15 +670,17 @@ results <- crossing(eps = eps_values, threshold = threshold_values) %>%
         error_onset = NA, error_peak = NA, error_offset = NA
         )
 
-# generating a grid of values to compute predictions for
-x_seq <- crossing(
-    x = seq(min(group_df$x), max(group_df$x), length.out = n_approx*2-1),
-    condition = c("cond1", "cond2")
+# generating a grid of time values to compute predictions for
+time_seq <- crossing(
+    # participant = unique(ppt_df$participant),
+    condition = c("cond1", "cond2"),
+    time = seq(min(ppt_df$time), max(ppt_df$time), length.out = n_approx*2-1),
     ) %>%
     arrange(condition)
 
 # retrieving posterior samples
-posterior_samples <- posterior_epred(object = gp_model, newdata = x_seq)
+# posterior_samples <- posterior_epred(object = gp_model, newdata = time_seq)
+posterior_samples <- posterior_epred(object = gam, newdata = time_seq)
 
 # computing the difference between cond2 and cond1
 posterior_samples <- posterior_samples[, (ncol(posterior_samples)/2+1):ncol(posterior_samples)] -
@@ -645,7 +695,7 @@ for (i in seq_len(nrow(results) ) ) {
     
     # computing probability metrics with the current eps value
     prob_y_above_0 <- data.frame(
-        x = seq(min(group_df$x), max(group_df$x), length.out = n_approx*2-1)
+        time = seq(min(ppt_df$time), max(ppt_df$time), length.out = n_approx*2-1)
         ) %>%
     mutate(post_prob = colMeans(posterior_samples) ) %>%
     mutate(m = colMeans(posterior_samples > eps) ) %>%
@@ -655,15 +705,15 @@ for (i in seq_len(nrow(results) ) ) {
     exceeding_times <- prob_y_above_0 %>%
         dplyr::filter(prob_ratio > threshold) %>%
         summarise(
-            cluster_onset = min(x, na.rm = TRUE),
-            cluster_offset = max(x, na.rm = TRUE)
+            cluster_onset = min(time, na.rm = TRUE),
+            cluster_offset = max(time, na.rm = TRUE)
             ) %>%
         mutate(
             cluster_peak = prob_y_above_0 %>%
             dplyr::filter(post_prob == max(post_prob, na.rm = TRUE) ) %>%
-            pull(x)
+            pull(time)
             ) %>%
-        mutate(true_onset = 160, true_peak = 250, true_offset = 342)
+        mutate(true_onset = 0.160, true_peak = 0.250, true_offset = 0.342)
     
     # storing the results in the dataframe
     if (nrow(exceeding_times) > 0) {
@@ -700,9 +750,6 @@ onset_plot <- results %>%
     scale_x_continuous(expand = c(0, 0) ) +
     scale_y_continuous(expand = c(0, 0) ) +
     scale_fill_gradientn(colors = rev(met.brewer("Hokusai1") ) ) +
-    # scale_fill_viridis_c() +
-    # scale_y_log10(labels = label_log(digits = 2) ) +
-    # theme_light(base_size = 10) +
     labs(
         title = "Onset error",
         x = "eps",
@@ -722,7 +769,6 @@ offset_plot <- results %>%
     scale_x_continuous(expand = c(0, 0) ) +
     scale_y_continuous(expand = c(0, 0) ) +
     scale_fill_gradientn(colors = rev(met.brewer("Hokusai1") ) ) +
-    # theme_light(base_size = 10) +
     labs(
         title = "Offset error",
         x = "eps",
@@ -734,7 +780,6 @@ offset_plot <- results %>%
 onset_plot + offset_plot
 
 # displaying best parameters values (according to onset error)
-# library(flextable)
 results %>%
     dplyr::select(-estimated_peak, -error_peak) %>%
     arrange(error_onset) %>%
@@ -742,12 +787,16 @@ results %>%
     head()
 
 # displaying best parameters values (according to offset error)
-# library(flextable)
 results %>%
     dplyr::select(-estimated_peak, -error_peak) %>%
     arrange(error_offset) %>%
     data.frame() %>%
     head()
+
+# displaying best parameters values (according to both onset/offset error)
+results %>%
+    filter(error_onset == min(error_onset) & error_offset == min(error_offset) ) %>%
+    data.frame()
 ```
 
 \newpage
@@ -760,9 +809,9 @@ Next we fit a hierarchical GAM using summary statistics of ERPs (mean and SD) at
 # averaging across participants
 summary_df <- raw_df %>%
     summarise(
-        eeg = mean(y),
-        eeg_sd = sd(y),
-        .by = c(participant, condition, x)
+        eeg_mean = mean(eeg),
+        eeg_sd = sd(eeg),
+        .by = c(participant, condition, time)
         )
 
 # defining a contrast for condition
@@ -771,8 +820,8 @@ contrasts(summary_df$condition) <- c(-0.5, 0.5)
 # fitting the GAM
 meta_gam <- brm(
     # using by-participant SD of ERPs across trials
-    eeg | se(eeg_sd) ~
-        condition + s(x, bs = "cr", k = 10, by = condition) +
+    eeg_mean | se(eeg_sd) ~
+        condition + s(time, bs = "cr", k = 10, by = condition) +
         (1 | participant),
     data = summary_df,
     family = gaussian(),
@@ -783,25 +832,16 @@ meta_gam <- brm(
     )
 ```
 
-```{r meta-gam-preds, fig.cap = "Hierarchical GAM posterior predictions."}
-# plotting the posterior predictions
-plot(
-    conditional_effects(x = meta_gam, effect = "x:condition"),
-    points = FALSE, theme = theme_light(), plot = FALSE
-    )[[1]] +
-    labs(x = "Time (ms)", y = "EEG signal (a.u.)")
-```
-
-```{r meta-gp, eval = FALSE, message = FALSE}
+```{r meta-gp, message = FALSE}
 # fitting the GP
 meta_gp <- brm(
     # using by-participant SD of ERPs across trials
-    eeg | se(eeg_sd) ~
-        condition + gp(x, k = 20, by = condition) +
+    eeg_mean | se(eeg_sd) ~
+        condition + gp(time, k = 20, by = condition) +
         (1 | participant),
     data = summary_df,
     family = gaussian(),
-    control = list(adapt_delta = 0.95, max_treedepth = 20),
+    control = list(adapt_delta = 0.99),
     iter = 5000,
     chains = 4,
     cores = 4,
@@ -809,20 +849,28 @@ meta_gp <- brm(
     )
 ```
 
-```{r meta-gp-preds, eval = FALSE, fig.cap = "Hierarchical GP posterior predictions."}
+```{r meta-gp-preds, fig.width = 9, fig.asp = 0.5, fig.cap = "Posterior predictions for the hierarchical GAM and GP."}
 # plotting the posterior predictions
-plot(
-    conditional_effects(x = meta_gp, effect = "x:condition"),
+meta_gam_preds <- plot(
+    conditional_effects(x = meta_gam, effect = "time:condition"),
     points = FALSE, theme = theme_light(), plot = FALSE
     )[[1]] +
-    labs(x = "Time (ms)", y = "EEG signal (a.u.)")
+    labs(x = "Time (s)", y = "EEG signal (a.u.)")
+meta_gp_preds <- plot(
+    conditional_effects(x = meta_gp, effect = "time:condition"),
+    points = FALSE, theme = theme_light(), plot = FALSE
+    )[[1]] +
+    labs(x = "Time (s)", y = "EEG signal (a.u.)")
+
+# combining the two plots
+meta_gam_preds + meta_gp_preds
 ```
 
-## Application to 1D decoding results (accuracy over time)
+## Application to time-resolved decoding results (accuracy over time)
 
-Assume we have M/EEG data and we conducted time-resolved multivariate pattern analysis (MVPA), also known as decoding. As a result, we have a timecourse of decoding accuracies (e.g., ROC AUC), bounded between 0 and 1, per participant (@fig-sim-decoding).
+We conducted time-resolved multivariate pattern analysis (MVPA), also known as decoding. As a result, we have a timecourse of decoding accuracies (e.g., ROC AUC), bounded between 0 and 1, per participant (@fig-mne-decoding)...
 
-```{r fig-sim-decoding, echo = FALSE, out.width = "75%", fig.cap = "Exemplary (simulated) group-level average timecourse of binary decoding accuracy (ROC AUC)."}
+```{r fig-sim-decoding, echo = FALSE, eval = TRUE, out.width = "75%", fig.cap = "Exemplary (simulated) group-level average timecourse of binary decoding accuracy (ROC AUC)."}
 # simulating decoding accuracies (ROC AUC)
 n_participants <- 20
 n_timepoints <- 240
@@ -884,17 +932,17 @@ group_data <- decoding_data %>%
         )
 
 # plotting it
-group_data %>%
-    ggplot(aes(x = time, y = mean_auc) ) +
-    geom_hline(yintercept = 0.5, linetype = "dashed") +
-    geom_vline(xintercept = 0.0, linetype = "dashed") +
-    geom_ribbon(aes(ymin = lower, ymax = upper), fill = "steelblue", alpha = 0.2) +
-    geom_line(color = "steelblue", size = 1) +
-    ylim(0, 1) +
-    labs(x = "Time (s)", y = "Decoding accuracy (ROC AUC)")
+# group_data %>%
+#     ggplot(aes(x = time, y = mean_auc) ) +
+#     geom_hline(yintercept = 0.5, linetype = "dashed") +
+#     geom_vline(xintercept = 0.0, linetype = "dashed") +
+#     geom_ribbon(aes(ymin = lower, ymax = upper), fill = "steelblue", alpha = 0.2) +
+#     geom_line(color = "steelblue", size = 1) +
+#     ylim(0, 1) +
+#     labs(x = "Time (s)", y = "Decoding accuracy (ROC AUC)")
 ```
 
-```{r mne-decoding, out.width = "75%", eval = FALSE}
+```{r mne-decoding, eval = FALSE, echo = FALSE}
 # loading the reticulate package
 library(reticulate)
 
@@ -904,7 +952,7 @@ mne <- import("mne")
 sklearn <- import("sklearn")
 
 # defining the function in R (it will be executed in Python)
-mne_decoding <- function (X, labels, ncores = 1) {
+mne_decoding <- function (X, labels, ncores = 8) {
     
     # converting R dataframe to NumPy array (reshaping if needed)
     # X should be a matrix before conversion
@@ -957,14 +1005,14 @@ for (ppt in participants) {
     ppt_data <- raw_df %>%
         filter(participant == ppt) %>%
         select(-participant) %>%
-        pivot_wider(names_from = x, values_from = y) %>%
+        pivot_wider(names_from = time, values_from = eeg) %>%
         select(-condition, -trial)
         
     # extracting the labels
     labels <- raw_df %>%
         filter(participant == ppt) %>%
         select(-participant) %>%
-        pivot_wider(names_from = x, values_from = y) %>%
+        pivot_wider(names_from = time, values_from = eeg) %>%
         pull(condition) %>%
         as.numeric()
     
@@ -972,7 +1020,7 @@ for (ppt in participants) {
     timesteps <- raw_df %>%
         filter(participant == ppt) %>%
         select(-participant) %>%
-        pull(x) %>%
+        pull(time) %>%
         unique()
     
     # running the decoding
@@ -991,19 +1039,17 @@ for (ppt in participants) {
 saveRDS(object = group_decoding_scores, file = "results/decoding_scores.rds")
 ```
 
-```{r, out.width = "75%", fig.cap = "Exemplary group-level average timecourse of binary decoding accuracy (ROC AUC). Decoding was performed using MNE-Python."}
+```{r fig-mne-decoding, echo = FALSE, fig.width = 9, fig.cap = "Exemplary average timecourse of binary decoding accuracy (ROC AUC) for each participant. Group-level average decoding accuracy is depicted as a grey background density in each panel."}
 # importing the decoding scores
 group_decoding_scores <- readRDS(file = "results/decoding_scores.rds")
 
 # extracting the timesteps
 timesteps <- raw_df %>%
-    # filter(participant == ppt) %>%
-    # select(-participant) %>%
-    pull(x) %>%
+    pull(time) %>%
     unique()
 
 # plotting it
-group_decoding_scores %>%
+decoding_summary <- group_decoding_scores %>%
     t() %>%
     data.frame() %>%
     mutate(
@@ -1012,10 +1058,48 @@ group_decoding_scores %>%
         ) %>%
     mutate(lower = mean - se, upper = mean + se) %>%
     mutate(time = timesteps) %>%
-    ggplot(aes(x = time, y = mean) ) +
+    mutate(
+        ymin = pmin(mean, 0.5),
+        ymax = pmax(mean, 0.5)
+        )
+
+# reshaping the decoding data
+decoding_data <- group_decoding_scores %>%
+    t() %>%
+    data.frame() %>%
+    mutate(time = timesteps) %>%
+    pivot_longer(cols = 1:20) %>%
+    mutate(
+        participant = rep(
+            unique(raw_df$participant),
+            n_distinct(raw_df$time)
+            )
+        ) %>%
+    select(participant, time, auc = value)
+
+# plotting it
+# group_decoding_scores %>%
+#     t() %>%
+#     data.frame() %>%
+#     mutate(time = timesteps) %>%
+#     pivot_longer(cols = 1:20) %>%
+#     mutate(
+#         participant = rep(
+#             unique(raw_df$participant),
+#             n_distinct(raw_df$time)
+#             )
+#         ) %>%
+decoding_data %>%
+    ggplot(aes(x = time) ) +
     geom_hline(yintercept = 0.5, linetype = "dashed") +
-    geom_ribbon(aes(ymin = lower, ymax = upper), fill = "steelblue", alpha = 0.2) +
-    geom_line(color = "steelblue", size = 0.8) +
+    geom_vline(xintercept = true_onset, linetype = "dashed") +
+    geom_line(aes(y = auc), linewidth = 0.5) +
+    facet_wrap(~participant) +
+    geom_ribbon(
+        data = decoding_summary,
+        aes(x = time, ymin = ymin, ymax = ymax),
+        alpha = 0.5
+        ) +
     labs(x = "Time (s)", y = "Decoding accuracy (ROC AUC)")
 ```
 
@@ -1040,7 +1124,7 @@ decoding_gp <- brm(
     auc ~ gp(time, k = 20),
     data = decoding_data,
     family = Beta(),
-    control = list(adapt_delta = 0.9),
+    control = list(adapt_delta = 0.99),
     iter = 5000,
     chains = 4,
     cores = 4,
@@ -1058,7 +1142,7 @@ gam_decoding_preds <- plot(
     theme = theme_light(), plot = FALSE
     )[[1]] +
     geom_hline(yintercept = 0.5, linetype = 2) +
-    geom_vline(xintercept = 0.0, linetype = 2) +
+    geom_vline(xintercept = true_onset, linetype = 2) +
     ylim(0, 1) +
     labs(x = "Time (s)", y = "Decoding accuracy (ROC AUC)")
 
@@ -1070,7 +1154,7 @@ gp_decoding_preds <- plot(
     theme = theme_light(), plot = FALSE
     )[[1]] +
     geom_hline(yintercept = 0.5, linetype = 2) +
-    geom_vline(xintercept = 0.0, linetype = 2) +
+    geom_vline(xintercept = true_onset, linetype = 2) +
     ylim(0, 1) +
     labs(x = "Time (s)", y = "Decoding accuracy (ROC AUC)")
 
@@ -1084,15 +1168,15 @@ Next, we plot the posterior probability of decoding accuracy being above chance 
 # defining a function to plot posterior prob of slope above 0
 plot_post_decoding <- function (model, data, chance_level = 0.5, eps = 0.1) {
     
-    # defining a sequence of x values to make predictions
-    x_seq <- crossing(time = seq(min(data$time), max(data$time), length.out = 100) )
+    # defining a sequence of time values to make predictions
+    time_seq <- crossing(time = seq(min(data$time), max(data$time), length.out = 100) )
   
     # retrieving posterior samples
-    posterior_samples <- posterior_epred(object = model, newdata = x_seq)
+    posterior_samples <- posterior_epred(object = model, newdata = time_seq)
     
     # computing the probability that y is above 0
     prob_y_above_0 <- data.frame(
-        time = x_seq$time,
+        time = time_seq$time,
         m = colMeans(posterior_samples > (chance_level + eps) ),
         lower = apply(
             X = posterior_samples > (chance_level + eps),
@@ -1108,9 +1192,8 @@ plot_post_decoding <- function (model, data, chance_level = 0.5, eps = 0.1) {
     prob_y_above_0 %>%
     ggplot(aes(x = time, y = m) ) +
     geom_hline(yintercept = chance_level, linetype = 2) +
-    geom_vline(xintercept = 0, linetype = 2) +
+    geom_vline(xintercept = true_onset, linetype = 2) +
     geom_line() +
-    # geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
     labs(x = "Time (s)", y = expression(Pr(AUC>chance~"|"~data, model) ) )
   
 }
@@ -1130,12 +1213,11 @@ plot_post_decoding(
 # defining a function to plot posterior prob of slope above 0
 plot_post_decoding_ratio <- function (model, data, chance_level = 0.5, eps = 0.1) {
     
-    # defining a sequence of x values to make predictions
-    # x_seq <- crossing(time = seq(min(data$time), max(data$time), length.out = 100) )
-    x_seq <- data.frame(time = data$time)
+    # defining a sequence of time values to make predictions
+    time_seq <- data.frame(time = data$time)
     
     # retrieving posterior samples
-    posterior_samples <- posterior_epred(object = model, newdata = x_seq)
+    posterior_samples <- posterior_epred(object = model, newdata = time_seq)
     
     # computing the probability that y is above 0
     prob_y_above_0 <- data.frame(time = data$time) %>%
@@ -1147,7 +1229,9 @@ plot_post_decoding_ratio <- function (model, data, chance_level = 0.5, eps = 0.1
     exceeding_times <- prob_y_above_0 %>%
         dplyr::filter(prob_ratio > threshold) %>%
         summarise(cluster_onset = min(time), cluster_offset = max(time) )
-    print(exceeding_times)
+    
+    # printing the identified clusters
+    # print(exceeding_times)
     
     # plotting it
     prob_y_above_0 %>%
@@ -1160,7 +1244,7 @@ plot_post_decoding_ratio <- function (model, data, chance_level = 0.5, eps = 0.1
         geom_hline(yintercept = 1/10, linetype = "dashed", color = "red") +
         geom_hline(yintercept = 100, linetype = "dashed", color = "orangered") +
         geom_hline(yintercept = 1/100, linetype = "dashed", color = "orangered") +
-        geom_vline(xintercept = 0, linetype = 2) +
+        geom_vline(xintercept = true_onset, linetype = 2) +
         geom_line() +
         geom_point(
             data = . %>% dplyr::filter(!is.na(above_thres) ),
@@ -1174,7 +1258,7 @@ plot_post_decoding_ratio <- function (model, data, chance_level = 0.5, eps = 0.1
         labs(
             x = "Time (s)",
             y = expression(
-                Pr(AUC>chance~"|"~data, model) / (1 - Pr(AUC>chance~"|"~data, model) )
+                Pr(AUC>chance~"|"~data) / (1 - Pr(AUC>chance~"|"~data) )
                 )
             )
   
@@ -1191,250 +1275,6 @@ plot_post_decoding_ratio(
         )
 ```
 
-\newpage
-
-## Application to 2D decoding results (cross-temporal generalisation)
-
-Assume we have M/EEG data and we have conducted cross-temporal generalisation analyses [@king2014]. As a result, we have a 2D matrix where each element contains the decoding accuracy (e.g., ROC AUC) of a classifier trained at timestep $\text{training}_{i}$ and tested at timestep $\text{testing}_{j}$ (@fig-sim-timegen).
-
-```{r fig-sim-timegen, echo = FALSE, dpi = 300, fig.cap = "Exemplary (simulated) group-level average cross-temporal generalisation matrix of decoding performance (ROC AUC)."}
-# number of participants
-n_participants <- 10
-
-# number of timepoints
-# n_timepoints <- 240 # (1.2s at 200Hz)
-n_timepoints <- 60 # (1.2s at 50Hz)
-timepoints <- seq(from = -0.2, to = 1, length.out = n_timepoints)
-
-# smooth onset and offset parameters
-decode_onset <- 0.2
-decode_offset <- 0.3
-
-# smoothness of onset/offset
-sigma_smooth <- 0.05
-
-# generating participant-specific cross-temporal generalisation matrices
-timegen_data <- tibble()
-
-# for each participant
-for (p in 1:n_participants) {
-  
-    # adding variability in peak amplitude and width per participant
-    peak_variability <- runif(1, 30, 50) # random peak strength (higher = stronger decoding)
-    smooth_variability <- runif(1, 0.04, 0.06) # random smoothness variation
-    onset_variability <- runif(1, -0.05, 0.05) # small jitter in onset time
-    offset_variability <- runif(1, -0.05, 0.05) # small jitter in offset time
-    
-    # computing smooth transition function (soft onset and offset with participant variation)
-    decode_window <- outer(timepoints, timepoints, function (t1, t2) {
-        
-        # smooth onset
-        onset_factor <- 1 /
-            (1 + exp(-(t1 - (decode_onset + onset_variability) ) / sigma_smooth) )
-        
-        # smooth offset
-        offset_factor <- 1 /
-            (1 + exp((t1 - (decode_offset + offset_variability)) / sigma_smooth) )
-        
-        # diagonal Gaussian
-        onset_factor * offset_factor * exp(-((t1 - t2)^2) / (2 * smooth_variability^2) )
-        
-    })
-    
-    # defining smooth alpha and beta parameters for Beta distribution
-    base_alpha <- 10
-    peak_alpha <- peak_variability
-    alpha_matrix <- base_alpha + peak_alpha * decode_window
-    beta_matrix <- base_alpha
-    
-    # generating AUC values using the Beta distribution
-    auc_matrix_beta <- matrix(
-        rbeta(n_timepoints^2, shape1 = alpha_matrix, shape2 = beta_matrix),
-        nrow = n_timepoints, ncol = n_timepoints
-        )
-    
-    # converting to long format for plotting
-    temp_data <- expand.grid(
-        train_time = timepoints, test_time = timepoints
-        ) %>%
-        mutate(auc = as.vector(auc_matrix_beta), participant = p)
-    
-    # storing results
-    timegen_data <- bind_rows(timegen_data, temp_data)
-    
-}
-
-# plotting cross-temporal generalization matrix
-timegen_data %>%
-    summarise(auc = mean(auc), .by = c(train_time, test_time) ) %>%
-    ggplot(aes(x = train_time, y = test_time, fill = auc) ) +
-    geom_tile() +
-    geom_vline(xintercept = 0, linetype = 2, linewidth = 0.5) +
-    geom_hline(yintercept = 0, linetype = 2, linewidth = 0.5) +
-    geom_abline(slope = 1, intercept = 0, linetype = 2, linewidth = 0.5) +
-    scale_x_continuous(expand = c(0, 0) ) +
-    scale_y_continuous(expand = c(0, 0) ) + 
-    coord_fixed() +
-    scale_fill_scico(palette = "vik", midpoint = 0.5, name = "AUC") +
-    labs(x = "Testing time (s)", y = "Training time (s)")
-```
-
-Now, we want to test whether and when decoding performance is above chance level (0.5 for a binary decoding task). These two models are computationally heavier to fit (more observations and 2D smooth functions)...
-
-```{r gam-gp-timegen, eval = FALSE, message = FALSE}
-# fitting a GAM with two temporal dimensions
-timegen_gam <- brm(
-    # 2D thin-plate spline (tp) to model smooth interactions between training and testing time
-    # auc ~ s(train_time, test_time, bs = "tp", k = 10),
-    auc ~ t2(train_time, test_time, bs = "tp", k = 10),
-    data = timegen_data,
-    family = Beta(),
-    iter = 2000,
-    chains = 4,
-    cores = 4,
-    file = "models/timegen_gam_t2.rds"
-    )
-
-# fitting a GP with two temporal dimensions
-timegen_gp <- brm(
-    auc ~ gp(train_time, test_time, k = 20),
-    # data = timegen_data %>% mutate(auc_c = scale(x = auc, center = TRUE, scale = FALSE) ),
-    data = timegen_data,
-    family = Beta(),
-    control = list(adapt_delta = 0.95, max_treedepth = 20),
-    iter = 2000,
-    chains = 4,
-    cores = 4,
-    file = "models/timegen_gp.rds"
-    )
-```
-
-```{r gam-timegen-preds, eval = FALSE, echo = FALSE, fig.cap = "Posterior predictions of the GAM fitted on decoding accuracy over time."}
-# plotting the posterior predictions
-plot(
-    conditional_effects(x = timegen_gam, prob = 0.95),
-    points = FALSE,
-    # point_args = list(size = 1, pch = 21, colour = "grey"),
-    # line_args = list(colour = "black"),
-    method = "posterior_epred",
-    surface = TRUE,
-    theme = theme_light(),
-    plot = TRUE
-    )#[[1]] +
-    # geom_hline(yintercept = 0.5, linetype = 2) +
-    # geom_vline(xintercept = 0.0, linetype = 2) +
-    # ylim(0, 1) +
-    # labs(x = "Time (s)", y = "Decoding accuracy (ROC AUC)")
-
-# posterior predictive checks
-pp_check(timegen_gam)
-```
-
-```{r gam-timegen-post-preds, echo = FALSE, fig.width = 8, fig.asp = 0.6, fig.cap = "Posterior probability of decoding accuracy being above chance level (2D GAM)."}
-# defining a function to plot posterior prob of slope above 0
-plot_post_timegen <- function (model, data, chance_level = 0.5, eps = 0.1) {
-    
-    # defining a sequence of x values to make predictions
-    preds_conds <- crossing(
-        train_time = unique(data$train_time)[c(TRUE, FALSE)],
-        test_time = unique(data$test_time)[c(TRUE, FALSE)]
-        )
-    
-    # retrieving posterior predictions
-    post_preds <- conditional_effects(
-        x = model,
-        conditions = preds_conds,
-        method = "posterior_epred",
-        prob = 0.95,
-        ndraws = 100
-        )[[1]]
-    
-    # plotting cross-temporal generalization matrix
-    post_preds_plot <- post_preds %>%
-        summarise(auc = mean(estimate__), .by = c(train_time, test_time) ) %>%
-        ggplot(aes(x = train_time, y = test_time, fill = auc) ) +
-        geom_tile() +
-        geom_vline(xintercept = 0, linetype = 2, linewidth = 0.5) +
-        geom_hline(yintercept = 0, linetype = 2, linewidth = 0.5) +
-        geom_abline(slope = 1, intercept = 0, linetype = 2, linewidth = 0.5) +
-        scale_x_continuous(expand = c(0, 0) ) +
-        scale_y_continuous(expand = c(0, 0) ) + 
-        coord_fixed() +
-        scale_fill_scico(palette = "vik", midpoint = 0.5, name = "AUC") +
-        # theme_light() +
-        labs(x = "Testing time (s)", y = "Training time (s)")
-
-    # retrieving posterior samples
-    posterior_samples <- posterior_epred(object = model, newdata = preds_conds)
-    
-    # computing the probability that y is above 0
-    prob_y_above_0 <- preds_conds %>%
-        mutate(post_prob = colMeans(posterior_samples) ) %>%
-        mutate(m = colMeans(posterior_samples > (chance_level + eps) ) ) %>%
-        mutate(prob_ratio = m / (1 - m) )
-        
-    # plotting it
-    # prob_y_above_0 %>% filter(prob_ratio != Inf) %>% pull(prob_ratio) %>% range()
-    prob_above_chance_plot <- prob_y_above_0 %>%
-        mutate(prob_ratio = ifelse(prob_ratio == Inf, 2000, prob_ratio) ) %>%
-        mutate(prob_ratio = ifelse(prob_ratio == 0, 0.0005, prob_ratio) ) %>%
-        ggplot(aes(x = train_time, y = test_time, fill = prob_ratio) ) +
-        geom_tile() +
-        geom_vline(xintercept = 0, linetype = 2, linewidth = 0.5) +
-        geom_hline(yintercept = 0, linetype = 2, linewidth = 0.5) +
-        geom_abline(slope = 1, intercept = 0, linetype = 2, linewidth = 0.5) +
-        scale_x_continuous(expand = c(0, 0) ) +
-        scale_y_continuous(expand = c(0, 0) ) + 
-        coord_fixed() +
-        scale_fill_scico(palette = "vik", midpoint = 0, name = "p/(1-p)", trans = "log10") +
-        # scale_fill_scico(palette = "vik", midpoint = 1, name = "p/(1-p)") +
-        # theme_light() +
-        labs(x = "Testing time (s)", y = "Training time (s)")
-    
-    # combining the two plots
-    post_preds_plot + prob_above_chance_plot
-    
-    # some tests
-    # post_preds_plot +
-    #     geom_contour(
-    #         data = prob_y_above_0,
-    #         aes(x = train_time, y = test_time, z = prob_ratio),
-    #         breaks = 10,
-    #         color = "red",
-    #         linewidth = 1,
-    #         inherit.aes = FALSE
-    #         )
-  
-}
-
-# using the function with the decoding GAM
-plot_post_timegen(model = timegen_gam, data = timegen_data, chance_level = 0.5, eps = 0.01)
-```
-
-```{r gp-timegen-preds, eval = FALSE, echo = FALSE, fig.cap = "Posterior predictions of the GP fitted on decoding accuracy over time."}
-# plotting the posterior predictions
-plot(
-    conditional_effects(x = timegen_gp, prob = 0.95),
-    points = FALSE,
-    method = "posterior_epred",
-    surface = TRUE,
-    theme = theme_light(),
-    plot = TRUE
-    )
-
-# posterior predictive checks
-pp_check(timegen_gp)
-
-# checking timecourse of timegen_data's diagonal
-timegen_data %>%
-    filter(train_time == test_time) %>%
-    summarise(auc = mean(auc), .by = train_time) %>%
-    ggplot(aes(x = train_time, y = auc) ) +
-    geom_hline(yintercept = 0.5, linetype = 2) +
-    geom_line() +
-    labs(x = "Time (s)", y = "AUC")
-```
-
 ## Application to actual M/EEG data
 
 Assessing the reliability of the proposed approach (in comparison to other methods) using some sort of split-half reliability [@rosenblatt2018]?
@@ -1445,16 +1285,16 @@ From Rousselet (2024): Five methods for multiple comparison correction were cons
 
 Comparing performance of the GAM and GP models with:
 
-- uncorrected univariate tests
-- univariate tests + Bonferroni
-- univariate tests + BH95 (Benjamini-Hochberg, 1995) aka FDR
-- univariate tests + BY01 (Benjamini-Yekutieli, 2001)
-- cluster-based permutation test (cluster sum)
-- cluster-based permutation test (cluster depth)
-- threshold-free cluster enhancement
-- change point
+-   uncorrected univariate tests
+-   univariate tests + Bonferroni/Holm
+-   univariate tests + BH95 (Benjamini-Hochberg, 1995) aka FDR
+-   univariate tests + BY01 (Benjamini-Yekutieli, 2001)
+-   cluster-based permutation test (cluster sum)
+-   cluster-based permutation test (cluster depth)
+-   threshold-free cluster enhancement
+-   change point
 
-We used `r pkrt("permuco")` and `r pkrt("changepoint")`...
+We used `r pkrt("changepoint")`...
 
 ```{r permutations-1d, echo = FALSE, eval = FALSE, fig.cap = "T-values timecourse with onset identified using the permuco package (clustermass method)."}
 # centering AUC relative to chance level (0.5)
@@ -1505,7 +1345,9 @@ f_values <- cluster_results$multiple_comparison$intercept$clustermass$main[, 1]
 p_values <- cluster_results$multiple_comparison$intercept$clustermass$main[, 2]
 ```
 
-```{r test-1d, echo = FALSE, fig.width = 9, fig.asp = 0.5, fig.cap = "Timecourse of squared t-values and s-values (continuous measure of evidence given by -log2(p-value)) with true onset and onset identified using the raw (uncorrected) p-values or the corrected p-values (BH, BY, Bonferroni, or Holm)."}
+S-values [@greenland2019]...
+
+```{r test-1d, echo = FALSE, fig.width = 9, fig.asp = 0.5, fig.cap = "Timecourse of squared t-values and s-values (continuous measure of evidence given by -log2(p-value)) with true onset and onset identified using the raw (uncorrected) p-values or the corrected p-values (BH, BY, Holm)."}
 # https://github.com/GRousselet/onsetsim/blob/main/docs/weakstrongfwer_demo.md
 # BH95: p.adjust(pvals, method = "BH")
 # BY01: p.adjust(perm.pvals, method = "BY")
@@ -1515,72 +1357,68 @@ aath <- 0.05
 
 # summarising raw_data per participant
 ppt_data <- raw_df %>%
-    summarise(y = mean(y), .by = c(participant, condition, x) ) %>%
-    pivot_wider(names_from = condition, values_from = y) %>%
-    mutate(y_diff = cond2 - cond1)
+    summarise(eeg = mean(eeg), .by = c(participant, condition, time) ) %>%
+    pivot_wider(names_from = condition, values_from = eeg) %>%
+    mutate(eeg_diff = cond2 - cond1)
 
 # massive univariate t-tests
 tests_results <- ppt_data %>%
-    group_by(x) %>%
+    group_by(time) %>%
     summarise(
-        # tval = t.test(x = auc_centered, mu = 0)$statistic^2,
-        # pval = t.test(x = auc_centered, mu = 0)$p.value
-        tval = t.test(x = y_diff, mu = 0)$statistic^2,
-        pval = t.test(x = y_diff, mu = 0)$p.value
+        tval = t.test(x = eeg_diff, mu = 0)$statistic^2,
+        pval = t.test(x = eeg_diff, mu = 0)$p.value
         ) %>%
     mutate(
         pval_bh = p.adjust(p = pval, method = "BH"),
         pval_by = p.adjust(p = pval, method = "BY"),
-        pval_bonf = p.adjust(p = pval, method = "bonferroni"),
+        # pval_bonf = p.adjust(p = pval, method = "bonferroni"),
         pval_holm = p.adjust(p = pval, method = "holm")
         ) %>%
     ungroup()
 
 # finding onsets
-from_timestep <- 20
+from_timestep <- 1
 onset_p <- find_onset(
     tests_results$pval[from_timestep:nrow(tests_results)] <= aath,
-    tests_results$x[from_timestep:nrow(tests_results)]
+    tests_results$time[from_timestep:nrow(tests_results)]
     )
 onset_bh <- find_onset(
     tests_results$pval_bh[from_timestep:nrow(tests_results)] <= aath,
-    tests_results$x[from_timestep:nrow(tests_results)]
+    tests_results$time[from_timestep:nrow(tests_results)]
     )
 onset_by <- find_onset(
     tests_results$pval_by[from_timestep:nrow(tests_results)] <= aath,
-    tests_results$x[from_timestep:nrow(tests_results)]
+    tests_results$time[from_timestep:nrow(tests_results)]
     )
-onset_bonf <- find_onset(
-    tests_results$pval_bonf[from_timestep:nrow(tests_results)] <= aath,
-    tests_results$x[from_timestep:nrow(tests_results)]
-    )
+# onset_bonf <- find_onset(
+#     tests_results$pval_bonf[from_timestep:nrow(tests_results)] <= aath,
+#     tests_results$time[from_timestep:nrow(tests_results)]
+#     )
 onset_holm <- find_onset(
     tests_results$pval_holm[from_timestep:nrow(tests_results)] <= aath,
-    tests_results$x[from_timestep:nrow(tests_results)]
+    tests_results$time[from_timestep:nrow(tests_results)]
     )
 
 # plotting the results
-default_colours <- hue_pal()(5)
-true_onset <- 160
-true_offset <- 342
+default_colours <- hue_pal()(10)
 tvals_plot <- tests_results %>%
-    ggplot(aes(x = x, y = tval) ) +
+    ggplot(aes(x = time, y = tval) ) +
     geom_area(position = "identity") +
     geom_vline(xintercept = true_onset, linetype = 2) +
     geom_vline(xintercept = onset_p, linetype = 2, color = default_colours[1]) +
     geom_vline(xintercept = onset_bh, linetype = 2, color = default_colours[2]) +
     geom_vline(xintercept = onset_by, linetype = 2, color = default_colours[4]) +
-    geom_vline(xintercept = onset_bonf, linetype = 2, color = default_colours[3]) +
+    # geom_vline(xintercept = onset_bonf, linetype = 2, color = default_colours[3]) +
     geom_vline(xintercept = onset_holm, linetype = 2, color = default_colours[5]) +
-    labs(x = "Time (ms)", y = bquote(t^2) )
+    labs(x = "Time (s)", y = bquote(t^2) )
 
 plot_title <- paste0(
-    "True onset: ", true_onset, "ms, ",
-    "Uncorrected onset: ", round(onset_p, 3), "ms, ",
-    "BH onset: ", round(onset_bh, 3), "ms, ",
-    "BY onset: ", round(onset_by, 3), "ms,\n",
-    "Bonf onset: ", round(onset_bonf, 3), "ms, ",
-    "Holm onset: ", round(onset_holm, 3), "ms"
+    "True onset: ", true_onset, "s, ",
+    "Uncorrected onset: ", round(onset_p, 3), "s, ",
+    "BH onset: ", round(onset_bh, 3), "s, ",
+    "BY onset: ", round(onset_by, 3), "s, ",
+    # "Bonf onset: ", round(onset_bonf, 3), "s, ",
+    "Holm onset: ", round(onset_holm, 3),  "s"
     )
 
 # plotting -log2(p) (surprisal under H0) with thresholds (on p-values)
@@ -1590,16 +1428,17 @@ plot_title <- paste0(
 pvals_plot <- tests_results %>%
     pivot_longer(cols = pval:pval_holm) %>%
     mutate(sval = -log2(value) ) %>%
-    ggplot(aes(x = x, y = sval, colour = name) ) +
+    ggplot(aes(x = time, y = sval, colour = name) ) +
     geom_line(linewidth = 0.5) +
     geom_hline(yintercept = -log2(aath), linetype = 2) +
+    geom_vline(xintercept = true_onset, linetype = 2) +
     geom_vline(xintercept = onset_p, linetype = 2, color = default_colours[1]) +
     geom_vline(xintercept = onset_bh, linetype = 2, color = default_colours[2]) +
     geom_vline(xintercept = onset_by, linetype = 2, color = default_colours[4]) +
-    geom_vline(xintercept = onset_bonf, linetype = 2, color = default_colours[3]) +
+    # geom_vline(xintercept = onset_bonf, linetype = 2, color = default_colours[3]) +
     geom_vline(xintercept = onset_holm, linetype = 2, color = default_colours[5]) +
     labs(
-        x = "Time (ms)",
+        x = "Time (s)",
         y = "-log2(p-value)",
         colour = "correction"
         )
@@ -1631,7 +1470,9 @@ tests_results %>%
     ggtitle(
         paste0(
             "True onset: ", true_onset, "s, ", "Change point onset: ",
-            round(tests_results$time[res@cpts[1]], 3), "s"
+            round(tests_results$time[res@cpts[1]], 3), "s, ",
+            "True offset: ", true_offset, "s, ", "Change point offset: ",
+            round(tests_results$time[res@cpts[2]], 3), "s"
             )
         )
 ```
@@ -1722,9 +1563,8 @@ p_values_df %>%
     ggplot(aes(x = time, y = sval) ) +
     geom_line(linewidth = 0.5) +
     geom_hline(yintercept = -log2(0.05), linetype = 2) +
-    # geom_area(position = "identity") +
     labs(
-        x = "Time (ms)",
+        x = "Time (s)",
         y = "-log2(p-value)"
         )
 ```
@@ -1751,7 +1591,7 @@ Prepare a wrapper `R` package and show how to call it in `Python` and integrate 
 
 ## Limitations and future directions
 
-...
+Extending the approach to spatiotemporal data (i.e., time + sensors)...
 
 ## Conclusions
 
@@ -1782,121 +1622,358 @@ cite_packages(
 
 # Appendix
 
-````{=html}
-<!--
+# Application to 2D time-resolved decoding results (cross-temporal generalisation)
 
-# Generalised additive models
+Assume we have M/EEG data and we have conducted cross-temporal generalisation analyses [@king2014]. As a result, we have a 2D matrix where each element contains the decoding accuracy (e.g., ROC AUC) of a classifier trained at timestep $\text{training}_{i}$ and tested at timestep $\text{testing}_{j}$ (@fig-sim-timegen).
 
-In brief, a GAM is a GLM that includes a sum of smooth functions of predictor(s)... The general formula for a GAM is:
+```{r fig-sim-timegen, echo = FALSE, dpi = 300, fig.cap = "Exemplary (simulated) group-level average cross-temporal generalisation matrix of decoding performance (ROC AUC)."}
+# number of participants
+n_participants <- 10
 
-$$
-g(\mathbb{E}[Y]) = \alpha + \sum_{j=1}^p s_j\left(X_j\right)
-$$
+# number of timepoints
+# n_timepoints <- 240 # (1.2s at 200Hz)
+n_timepoints <- 60 # (1.2s at 50Hz)
+timepoints <- seq(from = -0.2, to = 1, length.out = n_timepoints)
 
-where:
+# smooth onset and offset parameters
+decode_onset <- 0.2
+decode_offset <- 0.3
 
-- $Y$ is the response variable,
-- $g()$ is the link function that relates the expected value of $Y(E(Y)$ to the linear predictor.
-- $\alpha$ is the intercept term.
-- $s_j\left(X_j\right)$ are smooth functions, such as splines, applied to the predictor variable $X_j$.
-- $p$ is the number of predictor variables.
+# smoothness of onset/offset
+sigma_smooth <- 0.05
 
-Explain GAMs with code and figures here...
+# generating participant-specific cross-temporal generalisation matrices
+timegen_data <- tibble()
 
-```{r gam-tutorial, echo = TRUE, eval = FALSE}
-# see https://gavinsimpson.github.io/gratia/articles/posterior-simulation.html
-# see https://michael-franke.github.io/Bayesian-Regression/practice-sheets/10b-GAMs.html
-# and https://m-clark.github.io/generalized-additive-models/technical.html
-# create a set of /k/ splines for vector /x/
-get_basis <- function(x, k = 20){
-  # fit a dummy GAM
-  fit_gam <- mgcv::gam(
-    formula = y ~ s(times, bs = "cr", k = 20),
-    data    = tibble(y = 1, times = x))
-  # extract model matrix
-  model_matrix <- model.matrix(fit_gam)
-  # wrangle to long tibble
-  some_curves <- model_matrix |> 
-    as_tibble() |> 
-    mutate(x = x) |> 
-    pivot_longer(cols = -x) |> 
-    mutate(
-      name = str_replace(name, "s\\(times\\).", "curve_"))
-  return(some_curves)
-}
-
-make_a_wiggle <- function(some_curves, weights, data = NULL) {
+# for each participant
+for (p in 1:n_participants) {
   
-  your_wiggly_line <- some_curves |> 
-    mutate(
-      weight = rep(weights, n_x),
-      weighted_value = value * weight
-      ) |> 
-    group_by(x) |> 
-    summarize(wiggly_line = sum(weighted_value)) |> 
-    ungroup()
-  
-  your_wiggle_plot <- your_wiggly_line |> 
-    ggplot(aes(x = x, y = wiggly_line)) + 
-    geom_line(color = project_colors[1], size=1.5) + 
-    ggtitle("your wiggly line") +
-    xlab("x") + ylab("")
+    # adding variability in peak amplitude and width per participant
+    peak_variability <- runif(1, 30, 50) # random peak strength (higher = stronger decoding)
+    smooth_variability <- runif(1, 0.04, 0.06) # random smoothness variation
+    onset_variability <- runif(1, -0.05, 0.05) # small jitter in onset time
+    offset_variability <- runif(1, -0.05, 0.05) # small jitter in offset time
     
-  your_wiggle_plot
+    # computing smooth transition function (soft onset and offset with participant variation)
+    decode_window <- outer(timepoints, timepoints, function (t1, t2) {
+        
+        # smooth onset
+        onset_factor <- 1 /
+            (1 + exp(-(t1 - (decode_onset + onset_variability) ) / sigma_smooth) )
+        
+        # smooth offset
+        offset_factor <- 1 /
+            (1 + exp((t1 - (decode_offset + offset_variability)) / sigma_smooth) )
+        
+        # diagonal Gaussian
+        onset_factor * offset_factor * exp(-((t1 - t2)^2) / (2 * smooth_variability^2) )
+        
+    })
+    
+    # defining smooth alpha and beta parameters for Beta distribution
+    base_alpha <- 10
+    peak_alpha <- peak_variability
+    alpha_matrix <- base_alpha + peak_alpha * decode_window
+    beta_matrix <- base_alpha
+    
+    # generating AUC values using the Beta distribution
+    auc_matrix_beta <- matrix(
+        rbeta(n_timepoints^2, shape1 = alpha_matrix, shape2 = beta_matrix),
+        nrow = n_timepoints, ncol = n_timepoints
+        )
+    
+    # converting to long format for plotting
+    temp_data <- expand.grid(
+        train_time = timepoints, test_time = timepoints
+        ) %>%
+        mutate(auc = as.vector(auc_matrix_beta), participant = p)
+    
+    # storing results
+    timegen_data <- bind_rows(timegen_data, temp_data)
+    
 }
 
-weights <- c(0, 1, 10, rep(0, times = 17) )
-make_a_wiggle(some_curves, weights)
+# plotting cross-temporal generalization matrix
+timegen_data %>%
+    summarise(auc = mean(auc), .by = c(train_time, test_time) ) %>%
+    ggplot(aes(x = train_time, y = test_time, fill = auc) ) +
+    geom_tile() +
+    geom_vline(xintercept = 0, linetype = 2, linewidth = 0.5) +
+    geom_hline(yintercept = 0, linetype = 2, linewidth = 0.5) +
+    geom_abline(slope = 1, intercept = 0, linetype = 2, linewidth = 0.5) +
+    scale_x_continuous(expand = c(0, 0) ) +
+    scale_y_continuous(expand = c(0, 0) ) + 
+    coord_fixed() +
+    scale_fill_scico(palette = "vik", midpoint = 0.5, name = "AUC") +
+    labs(x = "Testing time (s)", y = "Training time (s)")
 ```
 
-# Gaussian processes
-
-Explain GPs with code and figures here...
-
-```{r gp-tutorial, echo = TRUE, eval = FALSE}
-# see https://m-clark.github.io/models-by-example/gaussian-process.html
-# see https://distill.pub/2019/visual-exploration-gaussian-processes/
-# and http://www.infinitecuriosity.org/vizgp/
-# defining the mean-centered function
-gp_mu <- function (x) {
+```{r mne-timegen, eval = FALSE, echo = FALSE}
+# defining the function in R (it will be executed in Python)
+mne_timegen <- function (X, labels, ncores = 8) {
     
-    map_dbl(x, function (x) x = 0)
+    # converting R dataframe to NumPy array (reshaping if needed)
+    # X should be a matrix before conversion
+    X_np <- np$array(X)
+    
+    if (length(dim(X_np) ) == 2) {
+
+        # adding a second dimension (channels) if missing
+        X_np <- np$expand_dims(X_np, axis = as.integer(1) )
+
+    }
+  
+    # defining the classifier
+    clf <- sklearn$linear_model$LogisticRegression(solver = "liblinear")
+    
+    # sliding the estimator on all time frames
+    time_gen <- mne$decoding$GeneralizingEstimator(
+        clf,
+        n_jobs = as.integer(ncores),
+        scoring = "roc_auc",
+        verbose = FALSE
+        )
+    
+    # or using N-fold cross-validation
+    scores <- mne$decoding$cross_val_multiscore(
+        time_gen,
+        X_np,
+        labels,
+        cv = as.integer(4),
+        n_jobs = as.integer(ncores),
+        verbose = FALSE
+        )
+    
+    # returning the scores
+    return (scores)
     
 }
 
-# defining the covariance function (squared exponential kernel)
-gp_K <- function (x, l = 1, sigma_f = 1) {
+# listing all participants
+participants <- unique(raw_df$participant)
+
+# initialising empty decoding results
+group_timegen_scores <- data.frame()
+
+# running decoding for each participant
+for (ppt in participants) {
     
-    sigma_f * exp( -(1/(2 * l^2)) * as.matrix(dist(x, upper = TRUE, diag = TRUE) ^ 2) )
+    # printing progress
+    print(ppt)
+    
+    # retrieve data from one participant
+    ppt_data <- raw_df %>%
+        filter(participant == ppt) %>%
+        select(-participant) %>%
+        pivot_wider(names_from = time, values_from = eeg) %>%
+        select(-condition, -trial)
+        
+    # extracting the labels
+    labels <- raw_df %>%
+        filter(participant == ppt) %>%
+        select(-participant) %>%
+        pivot_wider(names_from = time, values_from = eeg) %>%
+        pull(condition) %>%
+        as.numeric()
+    
+    # extracting the timesteps
+    timesteps <- raw_df %>%
+        filter(participant == ppt) %>%
+        select(-participant) %>%
+        pull(time) %>%
+        unique()
+    
+    # running the decoding
+    timegen_scores <- mne_timegen(
+        X = ppt_data,
+        labels = labels-1
+        )
+    
+    # computing the average over CV folds
+    # a <- timegen_scores %>%
+    #     apply(MARGIN = c(2, 3), FUN = mean) %>%
+    #     data.frame()
+    timegen_scores <- data.frame(np$mean(timegen_scores, axis = as.integer(0) ) )
+    
+    # sanity check
+    # image(as.matrix(timegen_scores) )
+    
+    # appending to previous results
+    group_timegen_scores <- bind_rows(group_timegen_scores, timegen_scores)
     
 }
 
-# uniform prior
-x_prior <- seq(-5, 5, 0.2)
+# saving the scores
+saveRDS(object = group_timegen_scores, file = "results/timegen_scores.rds")
 
-# multivariate draws
-y_prior = MASS::mvrnorm(
-    n  = n_prior,
-    mu = gp_mu(x_prior),
-    Sigma = gp_K(x_prior, l = l, sigma_f = sigma_f)
+# reshaping the data
+colnames(group_timegen_scores) <- unique(raw_df$time)
+timegen_data <- group_timegen_scores %>%
+    mutate(participant = rep(x = participants, each = n_distinct(raw_df$time) ) ) %>%
+    mutate(train_time = rep(x = unique(raw_df$time), times = length(participants) ) ) %>%
+    pivot_longer(
+        cols = -c(participant, train_time),
+        names_to = "test_time",
+        values_to = "auc"
+        ) %>%
+    mutate(test_time = as.numeric(test_time) )
+```
+
+Now, we want to test whether and when decoding performance is above chance level (0.5 for a binary decoding task). These two models are computationally heavier to fit (more observations and 2D smooth functions)...
+
+```{r gam-gp-timegen, message = FALSE}
+# fitting a GAM with two temporal dimensions
+timegen_gam <- brm(
+    # 2D thin-plate spline (tp)
+    # auc ~ s(train_time, test_time, bs = "tp", k = 10),
+    auc ~ t2(train_time, test_time, bs = "tp", k = 10),
+    data = timegen_data,
+    family = Beta(),
+    iter = 2000,
+    chains = 4,
+    cores = 4,
+    file = "models/timegen_gam_t2.rds"
     )
 
-# plotting it
-prior_data = data.frame(
-    x  = x_prior,
-    y  = t(y_prior),
-    sd = apply(y_prior, 2, sd)
-    ) %>% 
-    pivot_longer(-c(x, sd), names_to = "variable")
-
-prior_data %>%
-    ggplot(aes(x = x, y = value) ) +
-    geom_line(aes(group = variable), color = "#FF550080", alpha = 0.5) +
-    labs(title = "Prior")
+# fitting a GP with two temporal dimensions
+# timegen_gp <- brm(
+#     auc ~ gp(train_time, test_time, k = 20),
+#     data = timegen_data,
+#     family = Beta(),
+#     control = list(adapt_delta = 0.95),
+#     iter = 2000,
+#     chains = 4,
+#     cores = 4,
+#     file = "models/timegen_gp.rds"
+#     )
 ```
 
--->
-````
+```{r gam-timegen-preds, eval = FALSE, echo = FALSE, fig.cap = "Posterior predictions of the GAM fitted on decoding accuracy over time."}
+# plotting the posterior predictions
+plot(
+    conditional_effects(x = timegen_gam, prob = 0.95),
+    points = FALSE,
+    # point_args = list(size = 1, pch = 21, colour = "grey"),
+    # line_args = list(colour = "black"),
+    method = "posterior_epred",
+    surface = TRUE,
+    theme = theme_light(),
+    plot = TRUE
+    )#[[1]] +
+    # geom_hline(yintercept = 0.5, linetype = 2) +
+    # geom_vline(xintercept = 0.0, linetype = 2) +
+    # ylim(0, 1) +
+    # labs(x = "Time (s)", y = "Decoding accuracy (ROC AUC)")
+
+# posterior predictive checks
+pp_check(timegen_gam)
+```
+
+```{r gam-timegen-post-preds, echo = FALSE, fig.width = 8, fig.asp = 0.6, fig.cap = "Posterior probability of decoding accuracy being above chance level (2D GAM)."}
+# defining a function to plot posterior prob of slope above 0
+plot_post_timegen <- function (model, data, chance_level = 0.5, eps = 0.1) {
+    
+    # defining a sequence of x values to make predictions
+    preds_conds <- crossing(
+        train_time = unique(data$train_time)[c(TRUE, FALSE)],
+        test_time = unique(data$test_time)[c(TRUE, FALSE)]
+        )
+    
+    # retrieving posterior predictions
+    post_preds <- conditional_effects(
+        x = model,
+        conditions = preds_conds,
+        method = "posterior_epred",
+        prob = 0.95,
+        ndraws = 100
+        )[[1]]
+    
+    # plotting cross-temporal generalization matrix
+    post_preds_plot <- post_preds %>%
+        summarise(auc = mean(estimate__), .by = c(train_time, test_time) ) %>%
+        ggplot(aes(x = train_time, y = test_time, fill = auc) ) +
+        geom_tile() +
+        geom_vline(xintercept = 0, linetype = 2, linewidth = 0.5) +
+        geom_hline(yintercept = 0, linetype = 2, linewidth = 0.5) +
+        geom_abline(slope = 1, intercept = 0, linetype = 2, linewidth = 0.5) +
+        scale_x_continuous(expand = c(0, 0) ) +
+        scale_y_continuous(expand = c(0, 0) ) + 
+        coord_fixed() +
+        scale_fill_scico(palette = "vik", midpoint = 0.5, name = "AUC") +
+        labs(x = "Testing time (s)", y = "Training time (s)")
+
+    # retrieving posterior samples
+    posterior_samples <- posterior_epred(object = model, newdata = preds_conds)
+    
+    # computing the probability that y is above 0
+    prob_y_above_0 <- preds_conds %>%
+        mutate(post_prob = colMeans(posterior_samples) ) %>%
+        mutate(m = colMeans(posterior_samples > (chance_level + eps) ) ) %>%
+        mutate(prob_ratio = m / (1 - m) )
+        
+    # plotting it
+    # prob_y_above_0 %>% filter(prob_ratio != Inf) %>% pull(prob_ratio) %>% range()
+    prob_above_chance_plot <- prob_y_above_0 %>%
+        mutate(prob_ratio = ifelse(prob_ratio == Inf, 2000, prob_ratio) ) %>%
+        mutate(prob_ratio = ifelse(prob_ratio == 0, 0.0005, prob_ratio) ) %>%
+        ggplot(aes(x = train_time, y = test_time, fill = prob_ratio) ) +
+        geom_tile() +
+        geom_vline(xintercept = 0, linetype = 2, linewidth = 0.5) +
+        geom_hline(yintercept = 0, linetype = 2, linewidth = 0.5) +
+        geom_abline(slope = 1, intercept = 0, linetype = 2, linewidth = 0.5) +
+        scale_x_continuous(expand = c(0, 0) ) +
+        scale_y_continuous(expand = c(0, 0) ) + 
+        coord_fixed() +
+        scale_fill_scico(palette = "vik", midpoint = 0, name = "p/(1-p)", trans = "log10") +
+        # scale_fill_scico(palette = "vik", midpoint = 1, name = "p/(1-p)") +
+        # theme_light() +
+        labs(x = "Testing time (s)", y = "Training time (s)")
+    
+    # combining the two plots
+    post_preds_plot + prob_above_chance_plot
+    
+    # some tests
+    # post_preds_plot +
+    #     geom_contour(
+    #         data = prob_y_above_0,
+    #         aes(x = train_time, y = test_time, z = prob_ratio),
+    #         breaks = 10,
+    #         color = "red",
+    #         linewidth = 1,
+    #         inherit.aes = FALSE
+    #         )
+  
+}
+
+# using the function with the decoding GAM
+plot_post_timegen(model = timegen_gam, data = timegen_data, chance_level = 0.5, eps = 0.01)
+```
+
+```{r gp-timegen-preds, eval = FALSE, echo = FALSE, fig.cap = "Posterior predictions of the GP fitted on decoding accuracy over time."}
+# plotting the posterior predictions
+plot(
+    conditional_effects(x = timegen_gp, prob = 0.95),
+    points = FALSE,
+    method = "posterior_epred",
+    surface = TRUE,
+    theme = theme_light(),
+    plot = TRUE
+    )
+
+# posterior predictive checks
+pp_check(timegen_gp)
+
+# checking timecourse of timegen_data's diagonal
+timegen_data %>%
+    filter(train_time == test_time) %>%
+    summarise(auc = mean(auc), .by = train_time) %>%
+    ggplot(aes(x = train_time, y = auc) ) +
+    geom_hline(yintercept = 0.5, linetype = 2) +
+    geom_line() +
+    labs(x = "Time (s)", y = "AUC")
+```
+
+\newpage
 
 # Mathematical formulation of the bivariate GAM
 
