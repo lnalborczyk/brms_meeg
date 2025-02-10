@@ -195,8 +195,8 @@
 
 
 
-\title{Modelling M/EEG data with Bayesian nonparametric multilevel
-models}
+\title{Modelling M/EEG data with Bayesian multilevel generalised
+additive models}
 
 
 \shorttitle{Bayesian M/EEG modelling}
@@ -231,24 +231,24 @@ Statistics}}
 
 
 
-\abstract{Time-resolved electrophysoiological measurements such as those
+\abstract{Time-resolved electrophysiological measurements such as those
 offered by magneto- or electro-encephalography (M/EEG) provide a unique
 window onto neural activity underlying cognitive process and how they
 unfold over time. Typically, we are interested in testing whether such
 measures differ across conditions and/or groups. The conventional
-approach consists in conducting mass-univariate statistics followed by
-some form of multiplicity correction (e.g., FDR, FWER) or cluster-based
-inference. However, these cluster-based methods have an important
-downside: they shift the focus of inference from the timepoint to the
-cluster level, thus preventing any conclusion to be made about the onset
-and offset of effects (e.g., differences across conditions). Here, we
-introduce a novel \emph{model-based approch} for analysing
+approach consists in conducting mass-univariate statistics through
+followed by some form of multiplicity correction (e.g., FDR, FWER) or
+cluster-based inference. However, these cluster-based methods have an
+important downside: they shift the focus of inference from the timepoint
+to the cluster level, thus preventing any conclusion to be made about
+the onset and offset of effects (e.g., differences across conditions).
+Here, we introduce a novel \emph{model-based approch} for analysing
 one-dimensional M/EEG timeseries such as ERPs or decoding timecourses
-and their differences across conditions. This approach relies on
-Bayesian nonparametric multilevel modelling (multilevel generalised
-additive models or Gaussian processes), which outputs posterior
-probabililities of the effect being above chance at every
-timestep/voxel, while naturally taking into account the temporal
+and their differences across conditions or group. This approach relies
+on Bayesian nonparametric multilevel modelling (multilevel generalised
+additive models or Gaussian processes), which outputs the posterior
+probabilility of the effect being different than 0 (or above chance) at
+every timestep, while naturally taking into account the temporal
 dependencies and between-subject variability present in such data.}
 
 \keywords{EEG, MEG, generalised additive models, gaussian
@@ -357,8 +357,8 @@ Aix-en-Provence, France, email: ladislas.nalborczyk@cnrs.fr}
 \hypertarget{toc}{}
 \tableofcontents
 \newpage
-\section[Introduction]{Modelling M/EEG data with Bayesian nonparametric
-multilevel models}
+\section[Introduction]{Modelling M/EEG data with Bayesian multilevel
+generalised additive models}
 
 \setcounter{secnumdepth}{-\maxdimen} % remove section numbering
 
@@ -396,6 +396,11 @@ et al., 2023}).
 
 \subsection{Previous modelling work}\label{previous-modelling-work}
 
+From Dimigen \& Ehinger (\citeproc{ref-dimigen2021}{2021}): ``Recently,
+spline regression has been applied to ERPs (Hendrix, Baayen, \& Bolger,
+2017; Kryuchkova,Tucker,Wurm,\&Baayen,2012;Tremblay\& Baayen, 2010;
+Tremblay \& Newman, 2015)''\ldots{}
+
 Disentangling overlapping processes
 (\citeproc{ref-skukies_brain_2024}{Skukies et al., 2024};
 \citeproc{ref-skukies_modelling_2021}{Skukies \& Ehinger, 2021})\ldots{}
@@ -418,9 +423,9 @@ Cavanagh, 2011) data and allow the simultaneous investigation of
 multiple independent variables while preserving the high temporal
 resolution of the EEG.''\ldots{} See also (\citeproc{ref-hauk2006}{Hauk
 et al., 2006}; \citeproc{ref-rousselet2008}{Rousselet et al.,
-2008})\ldots{} Example of two-stage regression analysis
-(individual-level then group-level, 10.1101/2024.04.10.588861,
-\citeproc{ref-dunagan2024}{Dunagan et al., 2024})\ldots{}
+2008})\ldots{} Example of two-stage regression analysis (i.e.,
+individual-level then group-level, \citeproc{ref-dunagan2024}{Dunagan et
+al., 2024})\ldots{}
 
 \subsection{Generalised additive
 models}\label{generalised-additive-models}
@@ -457,96 +462,6 @@ where \(\beta_{jk}\) is the weight (coefficient) associated with the
 \(k\)th basis function \(b_{jk}()\) evaluated at the covariate value
 \(x_{ij}\) for the \(j\)th smooth function \(f_{j}\). Splines'
 coefficients are penalised\ldots{}
-
-\subsection{Gaussian process
-regression}\label{gaussian-process-regression}
-
-A Gaussian process (GP) is a stochastic process that defines the
-distribution over a collection of random variables indexed by a
-continuous variable, that is \(\{f(t): t \in \mathcal{T}\}\) for some
-index set \(\mathcal{T}\) (\citeproc{ref-rasmussen2005}{Rasmussen \&
-Williams, 2005};
-\citeproc{ref-riutort-mayol_practical_2023}{Riutort-Mayol et al.,
-2023}). Whereas Bayesian linear regression outputs a distribution over
-the parameters of some predefind parametric model, the GP approach, in
-contrast, is a non-parametric approach, in that it finds a distribution
-over the possible functions that are consistent with the observed data.
-However, note that nonparametric does not mean there aren't parameters,
-it means that there are infinitely many parameters.
-
-From
-\href{https://www.rdocumentation.org/packages/brms/versions/2.22.0/topics/gp}{brms
-documentation}: A GP is a stochastic process, which describes the
-relation between one or more predictors
-\(x=\left(x_{1}, \ldots, x_{d}\right)\) and a response \(f(x)\), where
-\(d\) is the number of predictors. A GP is the generalization of the
-multivariate normal distribution to an infinite number of dimensions.
-Thus, it can be interpreted as a prior over functions. The values of
-\(f()\) at any finite set of locations are jointly multivariate normal,
-with a covariance matrix defined by the covariance kernel
-\(k_p\left(x_i, x_j\right)\), where \(p\) is the vector of parameters of
-the GP:
-
-\[
-\left(f\left(x_{1}\right), \ldots f\left(x_{n}\right) \sim \operatorname{MVN}\left(0, \left(k_p\left(x_{i}, x_{j}\right)\right)_{i, j=1}^{n}\right)\right.
-\]
-
-The smoothness and general behaviour of the function \(f\) depends only
-on the choice of covariance kernel, which ensures that values that are
-close together in the input space will be mapped to similar output
-values\ldots{}
-
-From this perspective, \(f\) is a realisation of an infinite dimensional
-normal distribution:
-
-\[
-f \sim \mathrm{Normal}(0, C(\lambda))
-\]
-
-where \(C\) is a covariance kernel with hyperparameters \(\lambda\) that
-defines the covariance between two function values \(f\left(t_1\right)\)
-and \(f\left(t_2\right)\) for two time points \(t_1\) and \(t_2\)
-(\citeproc{ref-rasmussen2005}{Rasmussen \& Williams, 2005}). Similar to
-the different choices of the basis function for splines, different
-choices of the covariance kernel lead to different GPs. In this article,
-we consider the squared-exponential (a.k.a. radial basis function)
-kernel, which computes the squared distance between points and converts
-it into a measure of similarity. It is defined as:
-
-\[
-C(\lambda) := C\left(t_1, t_2, \sigma, \gamma\right) := \sigma^2 \exp \left(-\frac{||t_1-t_2||^{2}}{2 \gamma^2}\right)
-\]
-
-with hyperparameters \(\lambda = (\sigma, \gamma)\), expressing the
-overall scale of GP and the length-scale, respectively
-(\citeproc{ref-rasmussen2005}{Rasmussen \& Williams, 2005}). The
-advantages of this kernel are that it is computationally efficient and
-(infinitely) smooth making it a reasonable choice for the purposes of
-the present article. Here again, \(\lambda\) hyperparameters are
-estimated from the data, along with all other model parameters.
-
-Taken from
-\url{https://michael-franke.github.io/Bayesian-Regression/practice-sheets/10c-Gaussian-processes.html}:
-For a given vector \(\mathbf{x}\), we can use the kernel to construct
-finite multi-variate normal distribution associated with it like so:
-
-\[
-\mathbf{x} \mapsto_{G P} \operatorname{MVNormal}(m(\mathbf{x}), k(\mathbf{x}, \mathbf{x}))
-\]
-
-where \(m\) is a function that specifies the mean for the distribution
-associated with \(\mathbf{x}\). This mapping is essentially the Gaussian
-process: a systematic association of vectors of arbitrary length with a
-suitable multi-variate normal distribution.
-
-See also
-\url{https://jtimonen.github.io/lgpr-usage/articles/math.html}\ldots{}
-
-Low-rank approximate Gaussian processes are of main interest in machine
-learning and statistics due to the high computational demands of exact
-Gaussian process models
-(\citeproc{ref-riutort-mayol_practical_2023}{Riutort-Mayol et al.,
-2023})\ldots{}
 
 \subsection{Objectives}\label{objectives}
 
@@ -590,8 +505,8 @@ We computed the average of the ERP difference
 \begin{figure}[!htb]
 
 \caption{\label{fig-erp}Group-level average difference between
-conditions (mean +/- standard error of the mean). The `true' (population
-value of the) onset is indicated by the vertical dashed line.}
+conditions (mean +/- standard error of the mean). The `true' onset and
+offset are indicated by the vertical dashed lines.}
 
 \centering{
 
@@ -606,7 +521,12 @@ value of the) onset is indicated by the vertical dashed line.}
 We then fitted a GAM and GP regression model using the \texttt{brms}
 package (\citeproc{ref-brms2017}{Bürkner, 2017},
 \citeproc{ref-brms2018}{2018}; \citeproc{ref-nalborczyk2019}{Nalborczyk
-et al., 2019})\ldots{}
+et al., 2019}). We used the default priors in \texttt{brms}, that is,
+weakly informative priors. Four Markov Chain Monte-Carlo (MCMC) were ran
+for each model to approximate the posterior distribution, including each
+5000 iterations and a warmup of 2000 iterations. Posterior convergence
+was assessed examining trace plots as well as the Gelman--Rubin statisti
+\(\hat{R}\).
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -626,6 +546,7 @@ et al., 2019})\ldots{}
 \NormalTok{    eeg }\SpecialCharTok{\textasciitilde{}}\NormalTok{ condition }\SpecialCharTok{+} \FunctionTok{s}\NormalTok{(time, }\AttributeTok{bs =} \StringTok{"cr"}\NormalTok{, }\AttributeTok{k =} \DecValTok{10}\NormalTok{, }\AttributeTok{by =}\NormalTok{ condition),}
     \AttributeTok{data =}\NormalTok{ ppt\_df,}
     \AttributeTok{family =} \FunctionTok{gaussian}\NormalTok{(),}
+    \AttributeTok{warmup =} \DecValTok{2000}\NormalTok{,}
     \AttributeTok{iter =} \DecValTok{5000}\NormalTok{,}
     \AttributeTok{chains =} \DecValTok{4}\NormalTok{,}
     \AttributeTok{cores =} \DecValTok{4}\NormalTok{,}
@@ -634,7 +555,7 @@ et al., 2019})\ldots{}
 \end{Highlighting}
 \end{Shaded}
 
-Now we fit the GP\ldots{}
+Now we fit the GP regression model\ldots{}
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -697,26 +618,30 @@ And we plot the posterior predictions\ldots{}
 0}\label{posterior-probability-of-difference-above-0}
 
 We can retrieve the posterior probability of the slope for
-\texttt{condition} at each timestep.
+\texttt{condition} at each timestep (Figure~\ref{fig-plot-post-slope}).
 
-\begin{figure}[H]
+\begin{figure}[!htb]
 
-\caption{Slope for the difference between conditions according to the
-GAM (left) or the GP (right).}
+\caption{\label{fig-plot-post-slope}Slope for the difference between
+conditions according to the GAM (left) or the GP (right).}
 
-{\centering \includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/unnamed-chunk-1-1.pdf}
+\centering{
+
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-plot-post-slope-1.pdf}
 
 }
 
 \end{figure}%
 
 We can also compute the posterior probability of the slope for
-\texttt{condition} being above 0 (Figure~\ref{fig-post-prob-test}).
+\texttt{condition} being above \(0+\epsilon\)
+(Figure~\ref{fig-post-prob-test}), with \(\epsilon\) defined as 10\% of
+the standard deviation of the raw EEG signal.
 
 \begin{figure}[!htb]
 
-\caption{\label{fig-post-prob-test}Posterior probability of the EEG
-signal being above 0+eps according to the GAM (left) and the GP
+\caption{\label{fig-post-prob-test}Posterior probability of the ERP
+difference (slope) being above 0 according to the GAM (left) and the GP
 (right).}
 
 \centering{
@@ -729,15 +654,14 @@ signal being above 0+eps according to the GAM (left) and the GP
 
 We can also express this as the ratio of posterior probabilities (i.e.,
 \(p/(1-p)\)) and visualise the timecourse of this ratio superimposed
-with the conventional BF thresholds (Figure~\ref{fig-post-prob-ratio}).
-Also check this paper
-(\url{https://link.springer.com/article/10.3758/s13428-021-01613-6?fromPaywallRec=false})?
+with the conventional thresholds on evidence ratios
+(Figure~\ref{fig-post-prob-ratio}).
 
 \begin{figure}[!htb]
 
 \caption{\label{fig-post-prob-ratio}Ratio of posterior probability
-according to the GAM (left) and the GP (right). Timesteps above
-threshold (\textgreater10) are highlighted in green.}
+according to the GAM. Timesteps above threshold (10) are highlighted in
+green.}
 
 \centering{
 
@@ -749,67 +673,11 @@ threshold (\textgreater10) are highlighted in green.}
 
 \newpage
 
-\subsection{Error properties of the proposed
-approach}\label{error-properties-of-the-proposed-approach}
+\subsection{Multilevel modelling using ERP summary
+statistics}\label{multilevel-modelling-using-erp-summary-statistics}
 
-Below we are plotting the error function (where the error is computed as
-\(\text{error}:=|\hat{\theta}-\theta|\)) for both the onset and offset
-values of the ERP difference, according to various \texttt{eps} and
-\texttt{threshold} values. Remember that the signal is generated from a
-truncated Gaussian defining an objective onset at 160 ms, a maximum at
-250 ms, and an offset at 342 ms. Figure~\ref{fig-onset-error} shows that
-the GP model can \emph{exactly} recover the true onset and offset
-values, given some reasonable choice of \texttt{eps} and
-\texttt{threshold} values.
-
-\begin{verbatim}
-   eps threshold estimated_onset estimated_offset error_onset error_offset
-1 0.03         6            0.16            0.351           0        0.009
-2 0.03         7            0.16            0.351           0        0.009
-3 0.03         8            0.16            0.351           0        0.009
-4 0.03         9            0.16            0.351           0        0.009
-5 0.03        10            0.16            0.351           0        0.009
-6 0.03        11            0.16            0.351           0        0.009
-\end{verbatim}
-
-\begin{verbatim}
-   eps threshold estimated_onset estimated_offset error_onset error_offset
-1 0.07         8           0.166            0.342       0.006            0
-2 0.07         9           0.166            0.342       0.006            0
-3 0.07        10           0.166            0.342       0.006            0
-4 0.07        11           0.166            0.342       0.006            0
-5 0.07        12           0.166            0.342       0.006            0
-6 0.07        13           0.166            0.342       0.006            0
-\end{verbatim}
-
-\begin{verbatim}
-[1] eps              threshold        estimated_onset  estimated_peak  
-[5] estimated_offset error_onset      error_peak       error_offset    
-<0 rows> (or 0-length row.names)
-\end{verbatim}
-
-\begin{figure}[!htb]
-
-\caption{\label{fig-onset-error}Error function of onset (left) and
-offset (right) estimation according to various eps and threshold values
-(according to the GP model). Minimum error values are indicated by red
-crosses.}
-
-\centering{
-
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-onset-error-1.pdf}
-
-}
-
-\end{figure}%
-
-\newpage
-
-\subsection{Using summary statistics of
-ERPs}\label{using-summary-statistics-of-erps}
-
-Next we fit a hierarchical GAM using summary statistics of ERPs (mean
-and SD) at the participant level (similar to what is done in
+Next we fit a hierarchical/multilevel GAM using summary statistics of
+ERPs (mean and SD) at the participant level (similar to what is done in
 meta-analysis).
 
 \begin{Shaded}
@@ -833,6 +701,7 @@ meta-analysis).
 \NormalTok{        (}\DecValTok{1} \SpecialCharTok{|}\NormalTok{ participant),}
     \AttributeTok{data =}\NormalTok{ summary\_df,}
     \AttributeTok{family =} \FunctionTok{gaussian}\NormalTok{(),}
+    \AttributeTok{warmup =} \DecValTok{2000}\NormalTok{,}
     \AttributeTok{iter =} \DecValTok{5000}\NormalTok{,}
     \AttributeTok{chains =} \DecValTok{4}\NormalTok{,}
     \AttributeTok{cores =} \DecValTok{4}\NormalTok{,}
@@ -867,11 +736,15 @@ meta-analysis).
     \FunctionTok{conditional\_effects}\NormalTok{(}\AttributeTok{x =}\NormalTok{ meta\_gam, }\AttributeTok{effect =} \StringTok{"time:condition"}\NormalTok{),}
     \AttributeTok{points =} \ConstantTok{FALSE}\NormalTok{, }\AttributeTok{theme =} \FunctionTok{theme\_light}\NormalTok{(), }\AttributeTok{plot =} \ConstantTok{FALSE}
 \NormalTok{    )[[}\DecValTok{1}\NormalTok{]] }\SpecialCharTok{+}
+    \FunctionTok{scale\_colour\_met\_d}\NormalTok{(}\AttributeTok{name =} \StringTok{"Johnson"}\NormalTok{) }\SpecialCharTok{+}
+    \FunctionTok{scale\_fill\_met\_d}\NormalTok{(}\AttributeTok{name =} \StringTok{"Johnson"}\NormalTok{) }\SpecialCharTok{+}
     \FunctionTok{labs}\NormalTok{(}\AttributeTok{x =} \StringTok{"Time (s)"}\NormalTok{, }\AttributeTok{y =} \StringTok{"EEG signal (a.u.)"}\NormalTok{)}
 \NormalTok{meta\_gp\_preds }\OtherTok{\textless{}{-}} \FunctionTok{plot}\NormalTok{(}
     \FunctionTok{conditional\_effects}\NormalTok{(}\AttributeTok{x =}\NormalTok{ meta\_gp, }\AttributeTok{effect =} \StringTok{"time:condition"}\NormalTok{),}
     \AttributeTok{points =} \ConstantTok{FALSE}\NormalTok{, }\AttributeTok{theme =} \FunctionTok{theme\_light}\NormalTok{(), }\AttributeTok{plot =} \ConstantTok{FALSE}
 \NormalTok{    )[[}\DecValTok{1}\NormalTok{]] }\SpecialCharTok{+}
+    \FunctionTok{scale\_colour\_met\_d}\NormalTok{(}\AttributeTok{name =} \StringTok{"Johnson"}\NormalTok{) }\SpecialCharTok{+}
+    \FunctionTok{scale\_fill\_met\_d}\NormalTok{(}\AttributeTok{name =} \StringTok{"Johnson"}\NormalTok{) }\SpecialCharTok{+}
     \FunctionTok{labs}\NormalTok{(}\AttributeTok{x =} \StringTok{"Time (s)"}\NormalTok{, }\AttributeTok{y =} \StringTok{"EEG signal (a.u.)"}\NormalTok{)}
 
 \CommentTok{\# combining the two plots}
@@ -889,107 +762,47 @@ meta-analysis).
 
 \end{figure}%
 
-\subsection{Application to time-resolved decoding results (accuracy over
-time)}\label{application-to-time-resolved-decoding-results-accuracy-over-time}
+\newpage
 
-We conducted time-resolved multivariate pattern analysis (MVPA), also
-known as decoding. As a result, we have a timecourse of decoding
-accuracies (e.g., ROC AUC), bounded between 0 and 1, per participant
-(Figure~\ref{fig-mne-decoding})\ldots{}
+\subsection{Error properties of the proposed
+approach}\label{error-properties-of-the-proposed-approach}
 
-\begin{figure}[!htb]
+We then computed the difference between the true and estimated
+onset/offset of the ERP difference
+(\(\text{error}:=|\hat{\theta}-\theta|\)), according to various
+\texttt{eps} and \texttt{threshold} values. Remember that the signal is
+generated from a truncated Gaussian with an objective onset at 160 ms, a
+maximum at 250 ms, and an offset at 342 ms. Figure~\ref{fig-onset-error}
+shows that the hierarchical GAM can \emph{exactly} recover the true
+onset and offset values, given some reasonable choice of \texttt{eps}
+and \texttt{threshold} values (e.g., a threshold of 20).
 
-\caption{\label{fig-mne-decoding}Exemplary average timecourse of binary
-decoding accuracy (ROC AUC) for each participant. Group-level average
-decoding accuracy is depicted as a grey background density in each
-panel.}
-
-\centering{
-
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-mne-decoding-1.pdf}
-
-}
-
-\end{figure}%
-
-Now, we want to \emph{test} whether the group-level average decoding
-accuracy is above chance (i.e., 0.5) at each timestep. We use a similar
-GAM/GP as previously, but we replace the \(\mathrm{Normal}\) likelihood
-function by a \(\mathrm{Beta}\) one to account for the bounded nature of
-AUC values (between 0 and 1).
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# fitting the GAM}
-\NormalTok{decoding\_gam }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
-\NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{s}\NormalTok{(time, }\AttributeTok{bs =} \StringTok{"cr"}\NormalTok{, }\AttributeTok{k =} \DecValTok{10}\NormalTok{),}
-    \AttributeTok{data =}\NormalTok{ decoding\_data,}
-    \AttributeTok{family =} \FunctionTok{Beta}\NormalTok{(),}
-    \AttributeTok{iter =} \DecValTok{5000}\NormalTok{,}
-    \AttributeTok{chains =} \DecValTok{4}\NormalTok{,}
-    \AttributeTok{cores =} \DecValTok{4}\NormalTok{,}
-    \AttributeTok{file =} \StringTok{"models/decoding\_gam.rds"}
-\NormalTok{    )}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# fitting the GP}
-\NormalTok{decoding\_gp }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
-\NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{gp}\NormalTok{(time, }\AttributeTok{k =} \DecValTok{20}\NormalTok{),}
-    \AttributeTok{data =}\NormalTok{ decoding\_data,}
-    \AttributeTok{family =} \FunctionTok{Beta}\NormalTok{(),}
-    \AttributeTok{control =} \FunctionTok{list}\NormalTok{(}\AttributeTok{adapt\_delta =} \FloatTok{0.99}\NormalTok{),}
-    \AttributeTok{iter =} \DecValTok{5000}\NormalTok{,}
-    \AttributeTok{chains =} \DecValTok{4}\NormalTok{,}
-    \AttributeTok{cores =} \DecValTok{4}\NormalTok{,}
-    \AttributeTok{file =} \StringTok{"models/decoding\_gp.rds"}
-\NormalTok{    )}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{figure}[H]
-
-\caption{Posterior predictions of the GAM (left) and GP (right) fitted
-on decoding accuracy over time.}
-
-{\centering \includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/decoding-preds-1.pdf}
-
-}
-
-\end{figure}%
-
-Next, we plot the posterior probability of decoding accuracy being above
-chance level (plus some epsilon) (Figure~\ref{fig-decoding-post}).
+\begin{verbatim}
+   eps threshold estimated_onset estimated_offset error_onset error_offset
+1 0.00        13            0.16             0.34           0        0.002
+2 0.00        14            0.16             0.34           0        0.002
+3 0.00        15            0.16             0.34           0        0.002
+4 0.00        16            0.16             0.34           0        0.002
+5 0.00        17            0.16             0.34           0        0.002
+6 0.01        10            0.16             0.34           0        0.002
+\end{verbatim}
 
 \begin{figure}[!htb]
 
-\caption{\label{fig-decoding-post}Posterior probability of decoding
-accuracy being above chance level according to the GAM (left) or the GP
-(right).}
+\caption{\label{fig-onset-error}Error function of onset (left) and
+offset (right) estimation according to various eps and threshold values
+(according to the hierarchical GAM). Minimum error values are indicated
+by red crosses.}
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-decoding-post-1.pdf}
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-onset-error-1.pdf}
 
 }
 
 \end{figure}%
 
-\begin{figure}[!htb]
-
-\caption{\label{fig-decoding-ratio}Ratio of posterior probabilities of
-decoding accuracy being above chance level according to the GAM (left)
-or the GP (right).}
-
-\centering{
-
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-decoding-ratio-1.pdf}
-
-}
-
-\end{figure}%
+\newpage
 
 \subsection{Application to actual M/EEG
 data}\label{application-to-actual-meeg-data}
@@ -1001,40 +814,25 @@ other methods) using some sort of split-half reliability
 \subsection{Comparing the identified onsets/offsets to other
 approaches}\label{comparing-the-identified-onsetsoffsets-to-other-approaches}
 
-From Rousselet (2024): Five methods for multiple comparison correction
-were considered: two FDR methods; two cluster-based methods; and the
-maximum statistics. The two FDR methods were BH95 (Benjamini \&
-Hochberg, 1995) and BY01 (Benjamini \& Yekutieli, 2001), which were
-applied to the permutation p-values using the \texttt{p.adjust} function
-in \texttt{R}. The first cluster-based inference was implemented using a
-cluster-sum statistic of squared t-values\ldots{}
+We considered five methods for multiplicity corrections: two FDR
+methods; two cluster-based methods; and the maximum statistics. The two
+FDR methods were BH95 (Benjamini \& Hochberg, 1995;
+10.1111/j.2517-6161.1995.tb02031.x) and BY01 (Benjamini \& Yekutieli,
+2001; 10.1214/aos/1013699998), which were applied to the permutation
+p-values using the \texttt{p.adjust} function in \texttt{R}. The first
+cluster-based inference was implemented using a cluster-sum statistic of
+squared t-values\ldots{}
 
-Comparing performance of the GAM and GP models with:
-
-\begin{itemize}
-\tightlist
-\item
-  uncorrected univariate tests
-\item
-  univariate tests + Bonferroni/Holm
-\item
-  univariate tests + BH95 (Benjamini-Hochberg, 1995) aka FDR
-\item
-  univariate tests + BY01 (Benjamini-Yekutieli, 2001)
-\item
-  cluster-based permutation test (cluster sum)
-\item
-  cluster-based permutation test (cluster depth)
-\item
-  threshold-free cluster enhancement
-\item
-  change point
-\end{itemize}
-
-We used the \texttt{R} package \texttt{changepoint} v 2.2.4
-(\citeproc{ref-changepoint}{Killick et al., 2022a})\ldots{}
-
-S-values (\citeproc{ref-greenland2019}{Greenland, 2019})\ldots{}
+We also compared the performance of the GAMM (in correctly
+identifying/estimating the onset and offset of ERP difference across
+conditions) to the performance of the binary segmentation method as
+implemented in the \texttt{R} package \texttt{changepoint} v 2.2.4
+(\citeproc{ref-changepoint}{Killick et al., 2022a}), threshold-free
+cluster enhancement (TFCE, \citeproc{ref-smith2009}{Smith \& Nichols,
+2009}), as implemented in \texttt{MNE-Python}
+(\citeproc{ref-gramfort2013}{Gramfort, 2013}), and using the raw t-, p-,
+or s-values timecourse. S-values
+(\citeproc{ref-greenland2019}{Greenland, 2019})\ldots{}
 
 \begin{figure}[H]
 
@@ -1097,6 +895,13 @@ MNE-Python.}
 
 \end{figure}%
 
+\subsection{Simulation study}\label{simulation-study}
+
+Onset/offset estimation methods were assessed using these summary
+statistics of the Monte Carlo sampling distributions of onsets: bias
+(median-based), mean absolute error (MAE) and variance, with 10.000
+iterations (i.e., 10.000 simulated datasets)\ldots{}
+
 \newpage
 
 \section{Results}\label{results}
@@ -1124,8 +929,9 @@ Prepare a wrapper \texttt{R} package and show how to call it in
 \subsection{Limitations and future
 directions}\label{limitations-and-future-directions}
 
-Extending the approach to spatiotemporal data (i.e., time +
-sensors)\ldots{}
+Can be applied to any 1D timeseries (e.g., pupillometry,
+electromyography)\ldots{} Extending the approach to spatiotemporal data
+(i.e., time + sensors)\ldots{}
 
 \subsection{Conclusions}\label{conclusions}
 
@@ -1195,6 +1001,12 @@ Combrisson, E., \& Jerbi, K. (2015). Exceeding chance level by chance:
 and statistical assessment of decoding accuracy. \emph{Journal of
 Neuroscience Methods}, \emph{250}, 126--136.
 \url{https://doi.org/10.1016/j.jneumeth.2015.01.010}
+
+\bibitem[\citeproctext]{ref-dimigen2021}
+Dimigen, O., \& Ehinger, B. V. (2021). Regression-based analysis of
+combined EEG and eye-tracking data: Theory and applications.
+\emph{Journal of Vision}, \emph{21}(1), 3.
+\url{https://doi.org/10.1167/jov.21.1.3}
 
 \bibitem[\citeproctext]{ref-dunagan2024}
 Dunagan, D., Jordan, T., Hale, J. T., Pylkkänen, L., \& Chacón, D. A.
@@ -1490,6 +1302,110 @@ of methods. \emph{Psychophysiology}, \emph{41}(6), 822--832.
 
 \appendix
 
+\section{Application to time-resolved decoding results (accuracy over
+time)}\label{application-to-time-resolved-decoding-results-accuracy-over-time}
+
+We conducted time-resolved multivariate pattern analysis (MVPA), also
+known as decoding. As a result, we have a timecourse of decoding
+accuracies (e.g., ROC AUC), bounded between 0 and 1, per participant
+(Figure~\ref{fig-mne-decoding})\ldots{}
+
+\begin{figure}[!htb]
+
+\caption{\label{fig-mne-decoding}Exemplary average timecourse of binary
+decoding accuracy (ROC AUC) for each participant. Group-level average
+decoding accuracy is depicted as a grey background density in each
+panel.}
+
+\centering{
+
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-mne-decoding-1.pdf}
+
+}
+
+\end{figure}%
+
+Now, we want to \emph{test} whether the group-level average decoding
+accuracy is above chance (i.e., 0.5) at each timestep. We use a similar
+GAM/GP as previously, but we replace the \(\mathrm{Normal}\) likelihood
+function by a \(\mathrm{Beta}\) one to account for the bounded nature of
+AUC values (between 0 and 1).
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# fitting the GAM}
+\NormalTok{decoding\_gam }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
+\NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{s}\NormalTok{(time, }\AttributeTok{bs =} \StringTok{"cr"}\NormalTok{, }\AttributeTok{k =} \DecValTok{10}\NormalTok{),}
+    \AttributeTok{data =}\NormalTok{ decoding\_data,}
+    \AttributeTok{family =} \FunctionTok{Beta}\NormalTok{(),}
+    \AttributeTok{iter =} \DecValTok{5000}\NormalTok{,}
+    \AttributeTok{chains =} \DecValTok{4}\NormalTok{,}
+    \AttributeTok{cores =} \DecValTok{4}\NormalTok{,}
+    \AttributeTok{file =} \StringTok{"models/decoding\_gam.rds"}
+\NormalTok{    )}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# fitting the GP}
+\NormalTok{decoding\_gp }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
+\NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{gp}\NormalTok{(time, }\AttributeTok{k =} \DecValTok{20}\NormalTok{),}
+    \AttributeTok{data =}\NormalTok{ decoding\_data,}
+    \AttributeTok{family =} \FunctionTok{Beta}\NormalTok{(),}
+    \AttributeTok{control =} \FunctionTok{list}\NormalTok{(}\AttributeTok{adapt\_delta =} \FloatTok{0.99}\NormalTok{),}
+    \AttributeTok{iter =} \DecValTok{5000}\NormalTok{,}
+    \AttributeTok{chains =} \DecValTok{4}\NormalTok{,}
+    \AttributeTok{cores =} \DecValTok{4}\NormalTok{,}
+    \AttributeTok{file =} \StringTok{"models/decoding\_gp.rds"}
+\NormalTok{    )}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{figure}[H]
+
+\caption{Posterior predictions of the GAM (left) and GP (right) fitted
+on decoding accuracy over time.}
+
+{\centering \includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/decoding-preds-1.pdf}
+
+}
+
+\end{figure}%
+
+Next, we plot the posterior probability of decoding accuracy being above
+chance level (plus some epsilon) (Figure~\ref{fig-decoding-post}).
+
+\begin{figure}[!htb]
+
+\caption{\label{fig-decoding-post}Posterior probability of decoding
+accuracy being above chance level according to the GAM (left) or the GP
+(right).}
+
+\centering{
+
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-decoding-post-1.pdf}
+
+}
+
+\end{figure}%
+
+\begin{figure}[!htb]
+
+\caption{\label{fig-decoding-ratio}Ratio of posterior probabilities of
+decoding accuracy being above chance level according to the GAM (left)
+or the GP (right).}
+
+\centering{
+
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-decoding-ratio-1.pdf}
+
+}
+
+\end{figure}%
+
+\newpage
+
 \section{Application to 2D time-resolved decoding results
 (cross-temporal
 generalisation)}\label{application-to-2d-time-resolved-decoding-results-cross-temporal-generalisation}
@@ -1529,7 +1445,7 @@ functions)\ldots{}
 \NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{t2}\NormalTok{(train\_time, test\_time, }\AttributeTok{bs =} \StringTok{"tp"}\NormalTok{, }\AttributeTok{k =} \DecValTok{10}\NormalTok{),}
     \AttributeTok{data =}\NormalTok{ timegen\_data,}
     \AttributeTok{family =} \FunctionTok{Beta}\NormalTok{(),}
-    \AttributeTok{iter =} \DecValTok{2000}\NormalTok{,}
+    \AttributeTok{iter =} \DecValTok{5000}\NormalTok{,}
     \AttributeTok{chains =} \DecValTok{4}\NormalTok{,}
     \AttributeTok{cores =} \DecValTok{4}\NormalTok{,}
     \AttributeTok{file =} \StringTok{"models/timegen\_gam\_t2.rds"}
