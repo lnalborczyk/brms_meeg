@@ -1,6 +1,6 @@
 ---
-title: "Modelling M/EEG data with Bayesian generalised additive multilevel models"
-shorttitle: "Bayesian M/EEG modelling"
+title: "Precise temporal localisation of M/EEG effects with Bayesian generalised additive multilevel models"
+shorttitle: "Bayesian modelling of M/EEG data"
 author:
   - name: Ladislas Nalborczyk
     corresponding: true
@@ -22,7 +22,7 @@ author-note:
   disclosures:
     conflict-of-interest: "The authors have no conflicts of interest to disclose."
     # financial-support: "This study was supported by Grant [Grant Number] from [Funding Source]."
-abstract: "Time-resolved electrophysiological measurements such as those offered by magneto- or electro-encephalography (M/EEG) provide a unique window onto neural activity underlying cognitive process and how they unfold over time. Typically, we are interested in testing whether such measures differ across conditions and/or groups. The conventional approach consists in conducting mass-univariate statistics through followed by some form of multiplicity correction (e.g., FDR, FWER) or cluster-based inference. However, these cluster-based methods have an important downside: they shift the focus of inference from the timepoint to the cluster level, thus preventing any conclusion to be made about the onset and offset of effects (e.g., differences across conditions). Here, we introduce a novel *model-based approch* for analysing one-dimensional M/EEG timeseries such as ERPs or decoding timecourses and their differences across conditions or group. This approach relies on Bayesian generalised additive multilevel models, which output the posterior probabilility of the effect being above 0 (or above chance) at every timestep, while naturally taking into account the temporal dependencies and between-subject variability present in such data."
+abstract: "Time-resolved electrophysiological measurements such as those offered by magneto- or electro-encephalography (M/EEG) provide a unique window onto neural activity underlying cognitive processes. Typically, researchers are interested in testing whether and when such measures differ across conditions and/or groups. The conventional approach consists in conducting mass-univariate statistics through time followed by some form of multiplicity correction (e.g., FDR, FWER) or cluster-based inference. However, these cluster-based methods have an important downside: they shift the focus of inference from the timepoint to the cluster level, thus preventing any conclusion to be made about the onset or offset of effects (e.g., differences across conditions or groups). Here, we introduce a *model-based* approch for analysing M/EEG timeseries such as ERPs or timecourses of decoding performance and their differences across conditions or groups. This approach relies on Bayesian generalised additive multilevel models, which output the posterior probabilility of the effect being above 0 (or above chance) at every timestep, while naturally taking into account the temporal dependencies and between-subject variability present in such data. Using both simulation and actual EEG data, we show that the proposed approach largely outperforms conventional methods in determining both the onset and offset of M/EEG effects (e.g., ERPs difference, decoding performance), producting more precise and more reliable estimates. We provide an R package implementing the approach and illustrate how to integrate it into M/EEG statistical pipelines in MNE-Python."
 keywords: [EEG, MEG, generalised additive models, mixed-effects models, multilevel models, Bayesian statistics, brms]
 floatsintext: true
 numbered-lines: true
@@ -40,6 +40,7 @@ fontsize: 10pt
 draftfirst: false
 draftall: false
 a4paper: true
+donotrepeattitle: true
 lang: en
 toc: true
 language:
@@ -92,41 +93,38 @@ knitr::opts_chunk$set(
 theme_set(theme_light(base_size = 10, base_family = "Open Sans") )
 
 # template for citing R packages
+# pkrt_set(pkg = "the `R` package `:pkg` [:ref]")
 pkrt_set(pkg = "the `R` package `:pkg` v :ver [:ref]")
 ```
 
 # Introduction
 
-Here are some useful references to be discussed [@combrisson_exceeding_2015; @ehinger_unfold_2019; @hayasaka_validating_2003; @luck_how_2017; @pedersen_hierarchical_2019; @frossard2021; @frossard2022; @gramfort2013; @maris2007; @pernet2015]... See also [@maris2011]... and [@rosenblatt2018] (history of cluster-based approaches and using a data split?)... Cluster failure [@eklund2016]...
+Here are some useful references to be discussed [@combrisson_exceeding_2015; @ehinger_unfold_2019; @hayasaka_validating_2003; @luck_how_2017; @pedersen_hierarchical_2019; @frossard2021; @frossard2022; @gramfort2013; @maris2007; @pernet2015]... See also @maris2011 and @rosenblatt2018 (history of cluster-based approaches)... Clusters failures [@eklund2016]...
 
-```{=html}
-<!--
+## Previous work
 
-In the following, we consider two approaches to modelling the non-linear timecourse of M/EEG ERPs (or decoding performance): i) generalised additive models (GAMs) with smoothing splines [@wood2003; @wood2004]...
+Recent example of GLM for EEG [@wüllhorst2025; @fischer2013]... See also [@rousselet2008; @hauk2006]... Example of two-stage regression analysis [i.e., individual-level then group-level, @dunagan2024]...
 
-and ii) Gaussian processes (GPs) with a smooth covariance kernel [@rasmussen2005] and low-rank approximation [@riutort-mayol_practical_2023].
+From @dimigen2021: Recently, spline regression has been applied to ERPs [e.g., @hendrix2017; @kryuchkova2012]... GAMMs for EEG data [@abugaber2023; @meulman2015]...
 
--->
-```
+Disentangling overlapping processes [@skukies_brain_2024; @skukies_modelling_2021]... Weighting single trials [@pernet2022]... The LIMO toolbox [@pernet2011]...
 
-## Previous modelling work
+Using Bayes factors for decoding performance [@teichmann2022]...
 
-Recent example of GLM for EEG [@wüllhorst2025; @fischer2013]... "Similar approaches have been successfully applied to EEG time- (Rousselet et al., 2008) and frequency-domain (Cohen and Cavanagh, 2011) data and allow the simultaneous investigation of multiple independent variables while preserving the high temporal resolution of the EEG."... See also [@rousselet2008; @hauk2006]... Example of two-stage regression analysis [i.e., individual-level then group-level, @dunagan2024]...
+## Bayesian regression modelling
 
-From @dimigen2021: "Recently, spline regression has been applied to ERPs (Hendrix, Baayen, & Bolger, 2017; Kryuchkova,Tucker, Wurm, & Baayen,2012; Tremblay & Baayen, 2010; Tremblay & Newman, 2015)"... GAMMs for EEG data [@abugaber2023; @meulman2015]...
-
-Disentangling overlapping processes [@skukies_brain_2024; @skukies_modelling_2021]... Weighting single trials [@pernet2022]... The LIMO toolbox (https://onlinelibrary.wiley.com/doi/10.1155/2011/831409)... Using Bayes factors [@teichmann2022]...
+Short intro/recap about Bayesian (linear and generalised) regression models...
 
 ## Generalised additive models
 
-See for instance these tutorials [@sóskuthy2017; @winter2016] or application to phonetic data [@wieling2018] or this introduction [@baayen2020] or these reference books [@hastie2017; @wood2017]...
+See for instance these tutorials [@sóskuthy2017; @winter2016] or application to phonetic data [@wieling2018] or this introduction [@baayen2020] or these reference books [@hastie2017; @wood2017]... application to pupillometry [@vanrij2019]... GAMLSS for neuroimaging data [@dinga2021]...
 
 In generalised additive models (GAMs), the functional relationship between predictors and response variable is decomposed into a sum of low-dimensional non-parametric functions. A typical GAM has the following form:
 
 $$
 \begin{aligned} 
 y_{i} &\sim \mathrm{EF}\left(\mu_{i}, \phi\right)\\
-g\left(\mu_i\right) &= A_{i} + \mathbf{X}_{i} \gamma + \sum_{j=1}^{J} f_{j}\left(x_{ij}\right)
+g\left(\mu_i\right) &=  \underbrace{A_{i} + \mathbf{X}_{i} \gamma}_{\text{parametric part}} + \underbrace{\sum_{j=1}^{J} f_{j}\left(x_{ij}\right)}_{\text{non-parametric part}}
 \end{aligned}
 $$
 
@@ -136,7 +134,11 @@ $$
 f_{j}\left(x_{i j}\right) = \sum_{k=1}^K \beta_{jk} b_{jk}\left(x_{ij}\right)
 $$
 
-where $\beta_{jk}$ is the weight (coefficient) associated with the $k$th basis function $b_{jk}()$ evaluated at the covariate value $x_{ij}$ for the $j$th smooth function $f_{j}$. Splines' coefficients are penalised...
+where $\beta_{jk}$ is the weight (coefficient) associated with the $k$th basis function $b_{jk}()$ evaluated at the covariate value $x_{ij}$ for the $j$th smooth function $f_{j}$. Splines coefficients are penalised (usually through the squared of the smooth functions' second derivative) in a way that can be interpreted as a prior on the "wiggliness" of the function...
+
+## Bayesian generalised additive multilevel models
+
+Now describe the Bayesian GAMM... Proper inclusion of varying/random effects in the model specification protects against overly wiggly curves [@baayen2020]...
 
 ```{=html}
 <!--
@@ -192,7 +194,7 @@ Focusing on identifying onset and offset of effects (as assessed by ERP differen
 
 Following the approach used by @sassenhagen2019 and @rousselet_using_2025, we simulated EEG data stemming from two conditions, one with noise only, and the other with noise + signal. As in previous studies, the noise was generated by superimposing 50 sinusoids at different frequencies, following an EEG-like spectrum [see details and code in @yeung2004]. As in @rousselet_using_2025, the signal was generated from truncated Gaussian with an objective onset at 160 ms, a peak at 250 ms, and an offset at 342 ms. We simulated this signal for 250 timesteps between 0 and 0.5s, akin to a 500 Hz sampling rate. We simulated such data for a group of 20 participants with 50 trials per participant and condition (@fig-eeg).
 
-```{r fig-eeg, echo = FALSE, fig.width = 9, fig.cap = "Some ERPs in two conditions with 50 trials each, for a group of 20 participants."}
+```{r fig-eeg, echo = FALSE, fig.width = 9, fig.cap = "Averaged (mean) simulated EEG activity in two conditions with 50 trials each, for a group of 20 participants. The error band represents the mean plus/minus 1 standard error of the mean."}
 # importing R version of Matlab code from Yeung et al. (2004)
 source("code/eeg_noise.R")
 
@@ -274,11 +276,19 @@ true_offset <- 0.342
 
 # plotting the data
 raw_df %>%
-    summarise(eeg = mean(eeg), .by = c(participant, condition, time) ) %>%
-    ggplot(aes(x = time, y = eeg, colour = condition) ) +
+    summarise(
+        eeg_mean = mean(eeg),
+        eeg_se = sd(eeg) / sqrt(n() ),
+        .by = c(participant, condition, time),
+        ) %>%
+    ggplot(aes(x = time, y = eeg_mean, colour = condition, fill = condition) ) +
     geom_hline(yintercept = 0, linetype = 2) +
     geom_vline(xintercept = true_onset, linetype = 2) +
     geom_vline(xintercept = true_offset, linetype = 2) +
+    geom_ribbon(
+        aes(ymin = eeg_mean - eeg_se, ymax = eeg_mean + eeg_se, colour = NULL),
+        alpha = 0.3, show.legend = FALSE
+        ) +
     geom_line(show.legend = FALSE) +
     facet_wrap(~participant) +
     scale_colour_met_d(name = "Johnson") +
@@ -305,7 +315,7 @@ raw_df %>%
     geom_vline(xintercept = true_offset, linetype = 2) +
     geom_ribbon(
         aes(ymin = lower, ymax = upper, colour = NULL),
-        alpha = 0.25, show.legend = FALSE
+        alpha = 0.3, show.legend = FALSE
         ) +
     geom_line(show.legend = FALSE) +
     labs(x = "Time (s)", y = "EEG difference (a.u.)")
@@ -313,7 +323,7 @@ raw_df %>%
 
 ## Model fitting
 
-We then fitted a Bayesian GAM using the `brms` package [@brms2017; @brms2018; @nalborczyk2019]. We used the default priors in `brms`, that is, weakly informative priors. We ran eight Markov Chain Monte-Carlo (MCMC) to approximate the posterior distribution, including each 5000 iterations and a warmup of 2000 iterations, yielding a total of $8 \times (5000-2000) = 24000$ posterior samples to use for inference. Posterior convergence was assessed examining trace plots as well as the Gelman–Rubin statistic $\hat{R}$.
+We then fitted a Bayesian GAM using the `brms` package [@brms2017; @brms2018; @nalborczyk2019]. We used the default priors in `brms`, that is, weakly informative priors. We ran eight Markov Chain Monte-Carlo (MCMC) to approximate the posterior distribution, including each 5000 iterations and a warmup of 2000 iterations, yielding a total of $8 \times (5000-2000) = 24000$ posterior samples to use for inference. Posterior convergence was assessed examining trace plots as well as the Gelman–Rubin statistic $\hat{R}$. The `brms` package uses the same syntax as `r pkrt("mgcv")` for specifying smooth effects.
 
 ```{r gam, message = FALSE}
 # averaging across participants
@@ -336,6 +346,26 @@ gam <- brm(
     chains = 8,
     cores = 8,
     file = "models/gam.rds"
+    )
+```
+
+```{r gamm, echo = FALSE, eval = FALSE, message = FALSE}
+# defining a contrast for condition
+contrasts(raw_df$condition) <- c(-0.5, 0.5)
+
+# fitting the GAMM with factor smooth (per participant)
+gamm <- brm(
+    # cubic regression splines with k-1 basis functions
+    eeg ~ condition +
+        s(time, bs = "cr", k = 10, by = condition) +
+        s(time, participant, bs = "fs"),
+    data = raw_df,
+    family = gaussian(),
+    warmup = 2000,
+    iter = 5000,
+    chains = 4,
+    cores = 4,
+    file = "models/gamm.rds"
     )
 ```
 
@@ -462,6 +492,7 @@ plot_post_slope <- function (model, data = NULL) {
         ggplot(aes(x = time, y = m) ) +
         geom_hline(yintercept = 0, linetype = 2) +
         geom_vline(xintercept = true_onset, linetype = 2) +
+        geom_vline(xintercept = true_offset, linetype = 2) +
         geom_line() +
         geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
         scale_colour_met_d(name = "Johnson") +
@@ -480,7 +511,7 @@ plot_post_preds(model = gam) + plot_post_slope(model = gam)
 
 We then compute the posterior probability of the slope for `condition` being above $0+\epsilon$ (@fig-post-prob-test), with $\epsilon := 0.05$, which can be interpreted as the smallest effect size of interest.
 
-```{r fig-post-prob-test, echo = FALSE, out.width = "75%", fig.asp = 0.5, fig.cap = "Posterior probability of the ERP difference (slope) being above 0 according to the GAM."}
+```{r fig-post-prob-test, echo = FALSE, out.width = "75%", fig.asp = 0.75, fig.cap = "Posterior probability of the ERP difference (slope) being above 0 according to the GAM."}
 # defining a function to plot posterior prob of slope above 0
 plot_post_test <- function (model, data = NULL, eps = 0.1, n_approx = 1e3, n_draws = 1e3) {
     
@@ -537,7 +568,7 @@ plot_post_test(model = gam, eps = 0.1)
 
 We can also express this as the ratio of posterior probabilities (i.e., $p/(1-p)$) and visualise the timecourse of this ratio superimposed with the conventional thresholds on evidence ratios (@fig-post-prob-ratio).
 
-```{r fig-post-prob-ratio, echo = FALSE, fig.width = 8, fig.asp = 0.75, fig.cap = "Ratio of posterior probability according to the GAM. Timesteps above threshold (10) are highlighted in green."}
+```{r fig-post-prob-ratio, echo = FALSE, out.width = "75%", fig.asp = 0.75, fig.cap = "Ratio of posterior probability according to the GAM. Timesteps above threshold (10) are highlighted in green."}
 # defining some parameters
 n_approx <- 1e3
 eps <- 0.05
@@ -989,7 +1020,7 @@ results %>%
 
 ## Comparing the identified onsets/offsets to other approaches
 
-We compared the ability of the GAMM to correctly estimate the onset and offset of the ERP difference to widely used methods. First, we conducted mass-univariate t-tests (thus treating each timestep independently) and identified the onset and offset of the ERP difference as the first and last values crossing an arbitrary significance threshold ($\alpha = 0.01$). We then followed the same approach but after applying different forms of multiplicity correction the the p-values. We compared two methods that control the false discovery rate (FDR) [i.e., BH95, @benjamini1995; and BY01, @benjamini2001], one method that controls the familywise error rate (FWER) (i.e., Holm–Bonferroni method, https://www.jstor.org/stable/4615733), and two cluster-based methods [permutation with a single threshold and TFCE, @smith2009]. The BH95, BY01, and Holm corrections were applied to the p-values using the `p.adjust()` function in `R`. The cluster-based inference was implemented using a cluster-sum statistic of squared t-values, as implemented in `MNE-Python` [@gramfort2013], called via `r pkrt("reticulate")`. We also compared these estimates to the onset and offset as estimated using the binary segmentation algorithm, as implemented in `r pkrt("changepoint")`, and applied directly to the squared t-values [as in @rousselet_using_2025]. For visualisation and interpretability purposes, we converted p-values to s-values, which can be interpreted as bits of surprising information, assuming a null effect [@greenland2019] (@fig-corrections).
+We compared the ability of the GAMM to correctly estimate the onset and offset of the ERP difference to widely used methods. First, we conducted mass-univariate t-tests (thus treating each timestep independently) and identified the onset and offset of the ERP difference as the first and last values crossing an arbitrary significance threshold ($\alpha = 0.01$). We then followed the same approach but after applying different forms of multiplicity correction the the p-values. We compared two methods that control the false discovery rate (FDR) [i.e., BH95, @benjamini1995; and BY01, @benjamini2001], one method that controls the familywise error rate (FWER) [i.e., Holm–Bonferroni method, @holm1979], and two cluster-based methods [permutation with a single threshold and TFCE, @smith2009]. The BH95, BY01, and Holm corrections were applied to the p-values using the `p.adjust()` function in `R`. The cluster-based inference was implemented using a cluster-sum statistic of squared t-values, as implemented in `MNE-Python` [@gramfort2013], called via `r pkrt("reticulate")`. We also compared these estimates to the onset and offset as estimated using the binary segmentation algorithm, as implemented in `r pkrt("changepoint")`, and applied directly to the squared t-values [as in @rousselet_using_2025]. For visualisation and interpretability purposes, we converted p-values to s-values, which can be interpreted as bits of surprising information, assuming a null effect [@greenland2019] (@fig-corrections).
 
 ```{r permutations-1d, echo = FALSE, eval = FALSE, fig.cap = "T-values timecourse with onset identified using the permuco package (clustermass method)."}
 # centering AUC relative to chance level (0.5)
@@ -1253,7 +1284,7 @@ p_values_df %>%
 
 ## Simulation study
 
-Onset/offset estimation methods were assessed using these summary statistics of the Monte Carlo sampling distributions of onsets: median absolute error (MAE) and variance, with 10.000 iterations (i.e., 10.000 simulated datasets)...
+Onset/offset estimation methods were assessed using the median absolute error (MAE) and variance of 10.000 simulated datasets...
 
 ## Application to actual MEG data
 
@@ -1261,9 +1292,82 @@ Assessing the reliability of the proposed approach using some sort of split-half
 
 -   Create many (e.g., 10 or 20) half train/test splits of the data
 -   For each fold, estimate the onset/offset on both splits using all methods
--   Then summarise the distribution of between-split difference across folds
+-   Then summarise the distribution of onset/offset with the median and variance across folds
 
-This will allow checking that the proposed approach produces more reliable onset/offset estimates.
+This will allow checking that the proposed approach produces reliable onset/offset estimates.
+
+```{r reliability, echo = FALSE, eval = FALSE}
+# library(caret)
+# see https://github.com/topepo/caret/
+# https://topepo.github.io/caret/data-splitting.html
+# and createDataPartition()
+# and createFolds()
+# trainIndex <- createDataPartition(
+#     y = summary_df$participant,
+#     p = 0.5,
+#     list = FALSE,
+#     times = 10
+#     )
+
+# subsetting the data
+# summary_df_train <- summary_df[trainIndex, ]
+# summary_df_test  <- summary_df[-trainIndex, ]
+
+# getting unique participants
+unique_participants <- unique(summary_df$participant)
+
+# getting the number of participants
+num_participants <- length(unique_participants)
+
+# ensuring participants are randomly shuffled
+shuffled_participants <- sample(unique_participants)
+
+# defining the number of splits
+num_splits <- 10
+
+# creating a dataframe where each participant appears in every split
+split_df <- crossing(participant = unique_participants, split_number = 1:10)
+
+# assigning alternating groups (A or B) within each split for each participant
+# split_df <- split_df %>% mutate(group = rep(c("A", "B"), length.out = n() ) )
+split_df <- split_df %>%
+    group_by(split_number) %>%
+    # shuffling groups for each split
+    mutate(group = sample(rep(c("A", "B"), length.out = n() ) ) ) %>%
+    ungroup()
+
+# sanity checks
+# table(split_df$group)
+# split_df %>%
+#     ggplot(aes(x = group) ) +
+#     geom_histogram(stat = "count") +
+#     facet_wrap(~participant, ncol = 5)
+
+# now for each split, assess the onset and offset
+participants_split1_train <- split_df %>%
+    filter(split_number == 1 & group == "A") %>%
+    pull(participant)
+participants_split1_test <- split_df %>%
+    filter(split_number == 1 & group == "B") %>%
+    pull(participant)
+
+# split1 data
+summary_df_split1_train <- summary_df %>%
+    filter(participant %in% participants_split1_train)
+
+# fitting the GAM
+meta_gam_split1_train <- brm(
+    eeg_mean | se(eeg_sd) ~
+        condition + s(time, bs = "cr", k = 10, by = condition) +
+        (1 | participant),
+    data = summary_df_split1_train,
+    family = gaussian(),
+    warmup = 2000,
+    iter = 5000,
+    chains = 4,
+    cores = 4
+    )
+```
 
 # Results
 
@@ -1299,6 +1403,9 @@ sim_results %>%
     # keeping only the best brms results
     filter(eps == 0 & threshold == 20) %>%
     select(-eps,-threshold) %>%
+    # filtering some alpha_level
+    filter(alpha_level == 0.05) %>%
+    select(-alpha_level) %>%
     pivot_longer(cols = -simulation_id, names_to = "measure", values_to = "value") %>%
     data.frame() %>%
     mutate(
@@ -1324,7 +1431,7 @@ sim_results %>%
                 "cluster_tfce", "cpt", "brms"
                 ),
             labels = c(
-                "p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster-mass",
+                "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster-mass",
                 "TFCE", "Change point", "brms"
                 ),
             )
@@ -1361,6 +1468,9 @@ sim_results %>%
 sim_results %>%
     # keeping only the best brms results
     filter(eps == 0 & threshold == 20) %>%
+    # filtering some alpha_level
+    filter(alpha_level == 0.05) %>%
+    select(-alpha_level) %>%
     select(-eps,-threshold) %>%
     pivot_longer(
         cols = -simulation_id, 
@@ -1378,7 +1488,7 @@ sim_results %>%
                 "cluster_tfce", "cpt", "brms"
                 ),
             labels = c(
-                "p-value", "FDR BH95", "FDR BY01", "Holm",
+                "Raw p-value", "FDR BH95", "FDR BY01", "Holm",
                 "Cluster-mass", "TFCE", "Change point", "brms"
                 ),
             )
@@ -1398,8 +1508,6 @@ sim_results %>%
     geom_vline(xintercept = true_onset) +
     geom_vline(xintercept = true_offset) +
     geom_density(aes(fill = NULL) ) +
-    # facet_wrap(~type, scales = "free_x") +
-    # facet_wrap(~type) +
     facet_grid(plot_row~type, scales = "free_x") +
     theme_light(base_size = 12, base_family = "Open Sans") +
     scale_fill_manual(values = met.brewer(name = "Johnson", n = 8) ) +
@@ -1428,6 +1536,8 @@ Prepare a wrapper `R` package and show how to call it in `Python` and integrate 
 ## Limitations and future directions
 
 Can be applied to any 1D timeseries (e.g., pupillometry, electromyography)... Extending the approach to spatiotemporal data (i.e., time + sensors)...
+
+We kept the exemplary models simple, but can be extended by adding varying/random effects (intercept and slope) for item (e.g., word)... but also continuous predictors at the trial level?
 
 The error properties depend on the threshold parameter, a value of 10 or 20 seems to be a reasonable default, but the optimal threshold parameter can be adjusted using split-half reliability assessment...
 
@@ -2282,10 +2392,21 @@ Where... the parameters $E$ and $H$ are set a priori and control the influence o
 
 \newpage
 
-# Using the `R` package and integration with `MNE-Python`
+# Integration with `MNE-Python`
 
-Explain how to use the `R` package and to integrate it with `MNE` epochs...
+Explain how to use the `R` package with `MNE` epochs...
 
 ```{r r-python, eval = FALSE}
+# suggest a package name
+library(available)
+suggest(
+    text = "Time-resolved electrophysiological measurements such as those offered by magneto- or electro-encephalography (M/EEG) provide a unique window onto neural activity underlying cognitive processes. Typically, researchers are interested in testing whether and when such measures differ across conditions and/or groups. The conventional approach consists in conducting mass-univariate statistics through time followed by some form of multiplicity correction (e.g., FDR, FWER) or cluster-based inference. However, these cluster-based methods have an important downside: they shift the focus of inference from the timepoint to the cluster level, thus preventing any conclusion to be made about the onset or offset of effects (e.g., differences across conditions or groups). Here, we introduce a *model-based* approch for analysing M/EEG timeseries such as ERPs or timecourses of decoding performance and their differences across conditions or groups. This approach relies on Bayesian generalised additive multilevel models, which output the posterior probabilility of the effect being above 0 (or above chance) at every timestep, while naturally taking into account the temporal dependencies and between-subject variability present in such data. Using both simulation and actual EEG data, we show that the proposed approach largely outperforms conventional methods in determining both the onset and offset of M/EEG effects (e.g., ERPs difference, decoding performance), producting more precise and more reliable estimates. We provide an R package implementing the approach and illustrate how to integrate it into M/EEG statistical pipelines in MNE-Python."
+    )
+
+available:::namr(
+    title = "Precise temporal localisation of M/EEG effects with Bayesian generalised additive multilevel models",
+    verb = TRUE
+    )
+
 # to-do adding some code here...
 ```

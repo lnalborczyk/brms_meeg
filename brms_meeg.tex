@@ -195,11 +195,11 @@
 
 
 
-\title{Modelling M/EEG data with Bayesian generalised additive
-multilevel models}
+\title{Precise temporal localisation of M/EEG effects with Bayesian
+generalised additive multilevel models}
 
 
-\shorttitle{Bayesian M/EEG modelling}
+\shorttitle{Bayesian modelling of M/EEG data}
 
 
 \usepackage{etoolbox}
@@ -233,22 +233,28 @@ Statistics}}
 
 \abstract{Time-resolved electrophysiological measurements such as those
 offered by magneto- or electro-encephalography (M/EEG) provide a unique
-window onto neural activity underlying cognitive process and how they
-unfold over time. Typically, we are interested in testing whether such
-measures differ across conditions and/or groups. The conventional
-approach consists in conducting mass-univariate statistics through
-followed by some form of multiplicity correction (e.g., FDR, FWER) or
+window onto neural activity underlying cognitive processes. Typically,
+researchers are interested in testing whether and when such measures
+differ across conditions and/or groups. The conventional approach
+consists in conducting mass-univariate statistics through time followed
+by some form of multiplicity correction (e.g., FDR, FWER) or
 cluster-based inference. However, these cluster-based methods have an
 important downside: they shift the focus of inference from the timepoint
 to the cluster level, thus preventing any conclusion to be made about
-the onset and offset of effects (e.g., differences across conditions).
-Here, we introduce a novel \emph{model-based approch} for analysing
-one-dimensional M/EEG timeseries such as ERPs or decoding timecourses
-and their differences across conditions or group. This approach relies
-on Bayesian generalised additive multilevel models, which output the
+the onset or offset of effects (e.g., differences across conditions or
+groups). Here, we introduce a \emph{model-based} approch for analysing
+M/EEG timeseries such as ERPs or timecourses of decoding performance and
+their differences across conditions or groups. This approach relies on
+Bayesian generalised additive multilevel models, which output the
 posterior probabilility of the effect being above 0 (or above chance) at
 every timestep, while naturally taking into account the temporal
-dependencies and between-subject variability present in such data.}
+dependencies and between-subject variability present in such data. Using
+both simulation and actual EEG data, we show that the proposed approach
+largely outperforms conventional methods in determining both the onset
+and offset of M/EEG effects (e.g., ERPs difference, decoding
+performance), producting more precise and more reliable estimates. We
+provide an R package implementing the approach and illustrate how to
+integrate it into M/EEG statistical pipelines in MNE-Python.}
 
 \keywords{EEG, MEG, generalised additive models, mixed-effects
 models, multilevel models, Bayesian statistics, brms}
@@ -356,8 +362,8 @@ Aix-en-Provence, France, email: ladislas.nalborczyk@cnrs.fr}
 \hypertarget{toc}{}
 \tableofcontents
 \newpage
-\section[Introduction]{Modelling M/EEG data with Bayesian generalised
-additive multilevel models}
+\section[Introduction]{Precise temporal localisation of M/EEG effects
+with Bayesian generalised additive multilevel models}
 
 \setcounter{secnumdepth}{-\maxdimen} % remove section numbering
 
@@ -376,40 +382,43 @@ Here are some useful references to be discussed
 \citeproc{ref-luck_how_2017}{Luck \& Gaspelin, 2017};
 \citeproc{ref-maris2007}{Maris \& Oostenveld, 2007};
 \citeproc{ref-pedersen_hierarchical_2019}{E. J. Pedersen et al., 2019};
-\citeproc{ref-pernet2015}{C. R. Pernet et al., 2015})\ldots{} See also
-(\citeproc{ref-maris2011}{Maris, 2011})\ldots{} and
-(\citeproc{ref-rosenblatt2018}{Rosenblatt et al., 2018}) (history of
-cluster-based approaches and using a data split?)\ldots{} Cluster
-failure (\citeproc{ref-eklund2016}{Eklund et al., 2016})\ldots{}
+\citeproc{ref-pernet2015}{Pernet et al., 2015})\ldots{} See also Maris
+(\citeproc{ref-maris2011}{2011}) and Rosenblatt et al.
+(\citeproc{ref-rosenblatt2018}{2018}) (history of cluster-based
+approaches)\ldots{} Clusters failures (\citeproc{ref-eklund2016}{Eklund
+et al., 2016})\ldots{}
 
-\subsection{Previous modelling work}\label{previous-modelling-work}
+\subsection{Previous work}\label{previous-work}
 
 Recent example of GLM for EEG (\citeproc{ref-fischer2013}{Fischer \&
 Ullsperger, 2013}; \citeproc{ref-wuxfcllhorst2025}{Wüllhorst et al.,
-2025})\ldots{} ``Similar approaches have been successfully applied to
-EEG time- (Rousselet et al., 2008) and frequency-domain (Cohen and
-Cavanagh, 2011) data and allow the simultaneous investigation of
-multiple independent variables while preserving the high temporal
-resolution of the EEG.''\ldots{} See also (\citeproc{ref-hauk2006}{Hauk
-et al., 2006}; \citeproc{ref-rousselet2008}{Rousselet et al.,
-2008})\ldots{} Example of two-stage regression analysis (i.e.,
-individual-level then group-level, \citeproc{ref-dunagan2024}{Dunagan et
-al., 2024})\ldots{}
+2025})\ldots{} See also (\citeproc{ref-hauk2006}{Hauk et al., 2006};
+\citeproc{ref-rousselet2008}{Rousselet et al., 2008})\ldots{} Example of
+two-stage regression analysis (i.e., individual-level then group-level,
+\citeproc{ref-dunagan2024}{Dunagan et al., 2024})\ldots{}
 
-From Dimigen \& Ehinger (\citeproc{ref-dimigen2021}{2021}): ``Recently,
-spline regression has been applied to ERPs (Hendrix, Baayen, \& Bolger,
-2017; Kryuchkova,Tucker, Wurm, \& Baayen,2012; Tremblay \& Baayen, 2010;
-Tremblay \& Newman, 2015)''\ldots{} GAMMs for EEG data
-(\citeproc{ref-abugaber2023}{Abugaber et al., 2023};
+From Dimigen \& Ehinger (\citeproc{ref-dimigen2021}{2021}): Recently,
+spline regression has been applied to ERPs (e.g.,
+\citeproc{ref-hendrix2017}{Hendrix et al., 2017};
+\citeproc{ref-kryuchkova2012}{Kryuchkova et al., 2012})\ldots{} GAMMs
+for EEG data (\citeproc{ref-abugaber2023}{Abugaber et al., 2023};
 \citeproc{ref-meulman2015}{Meulman et al., 2015})\ldots{}
 
 Disentangling overlapping processes
 (\citeproc{ref-skukies_brain_2024}{Skukies et al., 2024};
 \citeproc{ref-skukies_modelling_2021}{Skukies \& Ehinger, 2021})\ldots{}
-Weighting single trials (\citeproc{ref-pernet2022}{C. Pernet,
-2022})\ldots{} The LIMO toolbox
-(https://onlinelibrary.wiley.com/doi/10.1155/2011/831409)\ldots{} Using
-Bayes factors (\citeproc{ref-teichmann2022}{Teichmann, 2022})\ldots{}
+Weighting single trials (\citeproc{ref-pernet2022}{Pernet,
+2022})\ldots{} The LIMO toolbox (\citeproc{ref-pernet2011}{Pernet et
+al., 2011})\ldots{}
+
+Using Bayes factors for decoding performance
+(\citeproc{ref-teichmann2022}{Teichmann, 2022})\ldots{}
+
+\subsection{Bayesian regression
+modelling}\label{bayesian-regression-modelling}
+
+Short intro/recap about Bayesian (linear and generalised) regression
+models\ldots{}
 
 \subsection{Generalised additive
 models}\label{generalised-additive-models}
@@ -420,7 +429,10 @@ See for instance these tutorials
 phonetic data (\citeproc{ref-wieling2018}{Wieling, 2018}) or this
 introduction (\citeproc{ref-baayen2020}{Baayen \& Linke, 2020}) or these
 reference books (\citeproc{ref-hastie2017}{Hastie \& Tibshirani, 2017};
-\citeproc{ref-wood2017}{Wood, 2017})\ldots{}
+\citeproc{ref-wood2017}{Wood, 2017a})\ldots{} application to
+pupillometry (\citeproc{ref-vanrij2019}{Rij et al., 2019})\ldots{}
+GAMLSS for neuroimaging data (\citeproc{ref-dinga2021}{Dinga et al.,
+2021})\ldots{}
 
 In generalised additive models (GAMs), the functional relationship
 between predictors and response variable is decomposed into a sum of
@@ -430,7 +442,7 @@ following form:
 \[
 \begin{aligned} 
 y_{i} &\sim \mathrm{EF}\left(\mu_{i}, \phi\right)\\
-g\left(\mu_i\right) &= A_{i} + \mathbf{X}_{i} \gamma + \sum_{j=1}^{J} f_{j}\left(x_{ij}\right)
+g\left(\mu_i\right) &=  \underbrace{A_{i} + \mathbf{X}_{i} \gamma}_{\text{parametric part}} + \underbrace{\sum_{j=1}^{J} f_{j}\left(x_{ij}\right)}_{\text{non-parametric part}}
 \end{aligned}
 \]
 
@@ -452,8 +464,18 @@ f_{j}\left(x_{i j}\right) = \sum_{k=1}^K \beta_{jk} b_{jk}\left(x_{ij}\right)
 
 where \(\beta_{jk}\) is the weight (coefficient) associated with the
 \(k\)th basis function \(b_{jk}()\) evaluated at the covariate value
-\(x_{ij}\) for the \(j\)th smooth function \(f_{j}\). Splines'
-coefficients are penalised\ldots{}
+\(x_{ij}\) for the \(j\)th smooth function \(f_{j}\). Splines
+coefficients are penalised (usually through the squared of the smooth
+functions' second derivative) in a way that can be interpreted as a
+prior on the ``wiggliness'' of the function\ldots{}
+
+\subsection{Bayesian generalised additive multilevel
+models}\label{bayesian-generalised-additive-multilevel-models}
+
+Now describe the Bayesian GAMM\ldots{} Proper inclusion of
+varying/random effects in the model specification protects against
+overly wiggly curves (\citeproc{ref-baayen2020}{Baayen \& Linke,
+2020})\ldots{}
 
 \subsection{Objectives}\label{objectives}
 
@@ -483,8 +505,9 @@ condition (Figure~\ref{fig-eeg}).
 
 \begin{figure}[!htb]
 
-\caption{\label{fig-eeg}Some ERPs in two conditions with 50 trials each,
-for a group of 20 participants.}
+\caption{\label{fig-eeg}Averaged (mean) simulated EEG activity in two
+conditions with 50 trials each, for a group of 20 participants. The
+error band represents the mean plus/minus 1 standard error of the mean.}
 
 \centering{
 
@@ -522,7 +545,9 @@ distribution, including each 5000 iterations and a warmup of 2000
 iterations, yielding a total of \(8 \times (5000-2000) = 24000\)
 posterior samples to use for inference. Posterior convergence was
 assessed examining trace plots as well as the Gelman--Rubin statistic
-\(\hat{R}\).
+\(\hat{R}\). The \texttt{brms} package uses the same syntax as the
+\texttt{R} package \texttt{mgcv} v 1.9-1 (\citeproc{ref-mgcv}{Wood,
+2017b}) for specifying smooth effects.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -573,8 +598,8 @@ according to the GAM.}
 
 We then compute the posterior probability of the slope for
 \texttt{condition} being above \(0+\epsilon\)
-(Figure~\ref{fig-post-prob-test}), with \(\epsilon\) defined as 10\% of
-the standard deviation of the raw EEG signal.
+(Figure~\ref{fig-post-prob-test}), with \(\epsilon := 0.05\), which can
+be interpreted as the smallest effect size of interest.
 
 \begin{figure}[!htb]
 
@@ -602,7 +627,7 @@ green.}
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-post-prob-ratio-1.pdf}
+\includegraphics[width=0.75\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-post-prob-ratio-1.pdf}
 
 }
 
@@ -701,7 +726,7 @@ compared two methods that control the false discovery rate (FDR) (i.e.,
 BH95, \citeproc{ref-benjamini1995}{Benjamini \& Hochberg, 1995}; and
 BY01, \citeproc{ref-benjamini2001}{Benjamini \& Yekutieli, 2001}), one
 method that controls the familywise error rate (FWER) (i.e.,
-Holm--Bonferroni method, https://www.jstor.org/stable/4615733), and two
+Holm--Bonferroni method, \citeproc{ref-holm1979}{Holm, 1979}), and two
 cluster-based methods (permutation with a single threshold and TFCE,
 \citeproc{ref-smith2009}{Smith \& Nichols, 2009}). The BH95, BY01, and
 Holm corrections were applied to the p-values using the
@@ -740,10 +765,8 @@ Holm).}
 
 \subsection{Simulation study}\label{simulation-study}
 
-Onset/offset estimation methods were assessed using these summary
-statistics of the Monte Carlo sampling distributions of onsets: median
-absolute error (MAE) and variance, with 10.000 iterations (i.e., 10.000
-simulated datasets)\ldots{}
+Onset/offset estimation methods were assessed using the median absolute
+error (MAE) and variance of 10.000 simulated datasets\ldots{}
 
 \subsection{Application to actual MEG
 data}\label{application-to-actual-meg-data}
@@ -761,12 +784,12 @@ preparation) in 33 participants:
   For each fold, estimate the onset/offset on both splits using all
   methods
 \item
-  Then summarise the distribution of between-split difference across
-  folds
+  Then summarise the distribution of onset/offset with the median and
+  variance across folds
 \end{itemize}
 
-This will allow checking that the proposed approach produces more
-reliable onset/offset estimates.
+This will allow checking that the proposed approach produces reliable
+onset/offset estimates.
 
 \section{Results}\label{results}
 
@@ -835,6 +858,10 @@ directions}\label{limitations-and-future-directions}
 Can be applied to any 1D timeseries (e.g., pupillometry,
 electromyography)\ldots{} Extending the approach to spatiotemporal data
 (i.e., time + sensors)\ldots{}
+
+We kept the exemplary models simple, but can be extended by adding
+varying/random effects (intercept and slope) for item (e.g.,
+word)\ldots{} but also continuous predictors at the trial level?
 
 The error properties depend on the threshold parameter, a value of 10 or
 20 seems to be a reasonable default, but the optimal threshold parameter
@@ -938,6 +965,12 @@ combined EEG and eye-tracking data: Theory and applications.
 \emph{Journal of Vision}, \emph{21}(1), 3.
 \url{https://doi.org/10.1167/jov.21.1.3}
 
+\bibitem[\citeproctext]{ref-dinga2021}
+Dinga, R., Fraza, C. J., Bayer, J. M. M., Kia, S. M., Beckmann, C. F.,
+\& Marquand, A. F. (2021). \emph{Normative modeling of neuroimaging data
+using generalized additive models of location scale and shape}.
+\url{http://dx.doi.org/10.1101/2021.06.14.448106}
+
 \bibitem[\citeproctext]{ref-dunagan2024}
 Dunagan, D., Jordan, T., Hale, J. T., Pylkkänen, L., \& Chacón, D. A.
 (2024). \emph{Evaluating the timecourses of morpho-orthographic,
@@ -1008,6 +1041,18 @@ Hayasaka, S. (2003). Validating cluster size inference: Random field and
 permutation methods. \emph{NeuroImage}, \emph{20}(4), 2343--2356.
 \url{https://doi.org/10.1016/j.neuroimage.2003.08.003}
 
+\bibitem[\citeproctext]{ref-hendrix2017}
+Hendrix, P., Bolger, P., \& Baayen, H. (2017). Distinct ERP signatures
+of word frequency, phrase frequency, and prototypicality in speech
+production. \emph{Journal of Experimental Psychology: Learning, Memory,
+and Cognition}, \emph{43}(1), 128--149.
+\url{https://doi.org/10.1037/a0040332}
+
+\bibitem[\citeproctext]{ref-holm1979}
+Holm, S. (1979). A simple sequentially rejective multiple test
+procedure. \emph{Scandinavian Journal of Statistics}, \emph{6}(2),
+65--70. \url{http://www.jstor.org/stable/4615733}
+
 \bibitem[\citeproctext]{ref-tidybayes}
 Kay, M. (2023). \emph{{tidybayes}: Tidy data and geoms for {Bayesian}
 models}. \url{https://doi.org/10.5281/zenodo.1308151}
@@ -1033,6 +1078,12 @@ King, J.-R., \& Dehaene, S. (2014). Characterizing the dynamics of
 mental representations: the temporal generalization method. \emph{Trends
 in Cognitive Sciences}, \emph{18}(4), 203--210.
 \url{https://doi.org/10.1016/j.tics.2014.01.002}
+
+\bibitem[\citeproctext]{ref-kryuchkova2012}
+Kryuchkova, T., Tucker, B. V., Wurm, L. H., \& Baayen, R. H. (2012).
+Danger and usefulness are detected early in auditory lexical processing:
+Evidence from electroencephalography. \emph{Brain and Language},
+\emph{122}(2), 81--91. \url{https://doi.org/10.1016/j.bandl.2012.05.005}
 
 \bibitem[\citeproctext]{ref-luck_how_2017}
 Luck, S. J., \& Gaspelin, N. (2017). How to get statistically
@@ -1086,10 +1137,17 @@ based on the scientific colour-maps}.
 \url{https://CRAN.R-project.org/package=scico}
 
 \bibitem[\citeproctext]{ref-pernet2022}
-Pernet, C. (2022). Electroencephalography robust statistical linear
+Pernet, C. R. (2022). Electroencephalography robust statistical linear
 modelling using a single weight per trial. \emph{Aperture Neuro},
 \emph{2}, 1--22.
 \url{https://doi.org/10.52294/apertureneuro.2022.2.seoo9435}
+
+\bibitem[\citeproctext]{ref-pernet2011}
+Pernet, C. R., Chauveau, N., Gaspar, C., \& Rousselet, G. A. (2011).
+LIMO EEG: A Toolbox for Hierarchical LInear MOdeling of
+ElectroEncephaloGraphic Data. \emph{Computational Intelligence and
+Neuroscience}, \emph{2011}, 1--11.
+\url{https://doi.org/10.1155/2011/831409}
 
 \bibitem[\citeproctext]{ref-pernet2015}
 Pernet, C. R., Latinus, M., Nichols, T. E., \& Rousselet, G. A. (2015).
@@ -1102,6 +1160,11 @@ of Neuroscience Methods}, \emph{250}, 85--93.
 R Core Team. (2023). \emph{{R}: A language and environment for
 statistical computing}. R Foundation for Statistical Computing.
 \url{https://www.R-project.org/}
+
+\bibitem[\citeproctext]{ref-vanrij2019}
+Rij, J. van, Hendriks, P., Rijn, H. van, Baayen, R. H., \& Wood, S. N.
+(2019). Analyzing the Time Course of Pupillometric Data. \emph{Trends in
+Hearing}, \emph{23}. \url{https://doi.org/10.1177/2331216519832483}
 
 \bibitem[\citeproctext]{ref-grateful}
 Rodriguez-Sanchez, F., \& Jackson, C. P. (2023). \emph{{grateful}:
@@ -1193,8 +1256,12 @@ Royal Statistical Society Series B: Statistical Methodology},
 \emph{65}(1), 95--114. \url{https://doi.org/10.1111/1467-9868.00374}
 
 \bibitem[\citeproctext]{ref-wood2017}
-Wood, S. N. (2017). \emph{Generalized Additive Models}. Chapman;
+Wood, S. N. (2017a). \emph{Generalized Additive Models}. Chapman;
 Hall/CRC. \url{https://doi.org/10.1201/9781315370279}
+
+\bibitem[\citeproctext]{ref-mgcv}
+Wood, S. N. (2017b). \emph{Generalized additive models: An introduction
+with r} (2nd ed.). Chapman; Hall/CRC.
 
 \bibitem[\citeproctext]{ref-wuxfcllhorst2025}
 Wüllhorst, V., Wüllhorst, R., Overmeyer, R., \& Endrass, T. (2025).
@@ -1506,15 +1573,25 @@ TFCE\ldots. But see Sassenhagen \& Draschkow
 
 \newpage
 
-\section{\texorpdfstring{Using the \texttt{R} package and integration
-with
-\texttt{MNE-Python}}{Using the R package and integration with MNE-Python}}\label{using-the-r-package-and-integration-with-mne-python}
+\section{\texorpdfstring{Integration with
+\texttt{MNE-Python}}{Integration with MNE-Python}}\label{integration-with-mne-python}
 
-Explain how to use the \texttt{R} package and to integrate it with
-\texttt{MNE} epochs\ldots{}
+Explain how to use the \texttt{R} package with \texttt{MNE}
+epochs\ldots{}
 
 \begin{Shaded}
 \begin{Highlighting}[]
+\CommentTok{\# suggest a package name}
+\FunctionTok{library}\NormalTok{(available)}
+\FunctionTok{suggest}\NormalTok{(}
+    \AttributeTok{text =} \StringTok{"Time{-}resolved electrophysiological measurements such as those offered by magneto{-} or electro{-}encephalography (M/EEG) provide a unique window onto neural activity underlying cognitive processes. Typically, researchers are interested in testing whether and when such measures differ across conditions and/or groups. The conventional approach consists in conducting mass{-}univariate statistics through time followed by some form of multiplicity correction (e.g., FDR, FWER) or cluster{-}based inference. However, these cluster{-}based methods have an important downside: they shift the focus of inference from the timepoint to the cluster level, thus preventing any conclusion to be made about the onset or offset of effects (e.g., differences across conditions or groups). Here, we introduce a *model{-}based* approch for analysing M/EEG timeseries such as ERPs or timecourses of decoding performance and their differences across conditions or groups. This approach relies on Bayesian generalised additive multilevel models, which output the posterior probabilility of the effect being above 0 (or above chance) at every timestep, while naturally taking into account the temporal dependencies and between{-}subject variability present in such data. Using both simulation and actual EEG data, we show that the proposed approach largely outperforms conventional methods in determining both the onset and offset of M/EEG effects (e.g., ERPs difference, decoding performance), producting more precise and more reliable estimates. We provide an R package implementing the approach and illustrate how to integrate it into M/EEG statistical pipelines in MNE{-}Python."}
+\NormalTok{    )}
+
+\NormalTok{available}\SpecialCharTok{:::}\FunctionTok{namr}\NormalTok{(}
+    \AttributeTok{title =} \StringTok{"Precise temporal localisation of M/EEG effects with Bayesian generalised additive multilevel models"}\NormalTok{,}
+    \AttributeTok{verb =} \ConstantTok{TRUE}
+\NormalTok{    )}
+
 \CommentTok{\# to{-}do adding some code here...}
 \end{Highlighting}
 \end{Shaded}

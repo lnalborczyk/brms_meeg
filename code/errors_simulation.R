@@ -29,8 +29,7 @@ source("code/functions.R")
 meanpower <- unlist(read.table("code/meanpower.txt") )
 
 # defining the number of simulations to be performed
-# nsims <- 1e4
-nsims <- 10
+nsims <- 1e2
 
 # defining simulation parameters
 n_trials <- 50 # number of trials
@@ -43,8 +42,8 @@ ronset <- seq(from = 150, to = 170, by = 2) # random onset for each participant
 true_onset <- 0.160
 true_offset <- 0.342
 
-# defining an arbitrary alpha threshold
-aath <- 0.05
+# defining significance (alpha) thresholds
+significance_thresholds <- c(0.05, 0.01, 0.005, 0.001)
 
 # defining a function to generate a dataframe
 generate_data <- function (n_trials, n_ppt, outvar, srate, ronset) {
@@ -234,7 +233,7 @@ sim_results <- data.frame()
 for (i in seq(from = 1, to = nsims, by = 1) ) {
     
     # printing progress
-    cat("Simulation number:", i, "out of", nrow(nsims), "simulations...")
+    cat("Simulation number:", i, "out of", nsims, "simulations...\n")
     
     # simulating some EEG data
     raw_df <- generate_data(
@@ -341,49 +340,12 @@ for (i in seq(from = 1, to = nsims, by = 1) ) {
         
     }
     
-    # plotting the results
-    # onset_plot <- eps_threshold_results %>%
-    #     ggplot(aes(x = eps, y = threshold, fill = error_onset) ) +
-    #     geom_tile(show.legend = FALSE) +
-    #     geom_point(
-    #         data = eps_threshold_results %>%
-    #             dplyr::filter(error_onset == min(error_onset, na.rm = TRUE) ),
-    #         aes(x = eps, y = threshold),
-    #         color = "orangered", size = 2, shape = 4,
-    #         show.legend = FALSE
-    #         ) +
-    #     scale_x_continuous(expand = c(0, 0) ) +
-    #     scale_y_continuous(expand = c(0, 0) ) +
-    #     scale_fill_gradientn(colors = rev(met.brewer("Hokusai1") ) ) +
-    #     labs(
-    #         title = "Onset error",
-    #         x = "eps",
-    #         y = "Threshold",
-    #         fill = "Error"
-    #         )
-    # 
-    # offset_plot <- eps_threshold_results %>%
-    #     ggplot(aes(x = eps, y = threshold, fill = error_offset) ) +
-    #     geom_tile(show.legend = FALSE) +
-    #     geom_point(
-    #         data = eps_threshold_results %>%
-    #             dplyr::filter(error_offset == min(error_offset, na.rm = TRUE) ),
-    #         aes(x = eps, y = threshold),
-    #         color = "orangered", size = 2, shape = 4,
-    #         show.legend = FALSE
-    #         ) +
-    #     scale_x_continuous(expand = c(0, 0) ) +
-    #     scale_y_continuous(expand = c(0, 0) ) +
-    #     scale_fill_gradientn(colors = rev(met.brewer("Hokusai1") ) ) +
-    #     labs(
-    #         title = "Offset error",
-    #         x = "eps",
-    #         y = "Threshold",
-    #         fill = "Error"
-    #         )
-    
-    # combining the plots
-    # onset_plot + offset_plot
+    # converting data to a matrix (for later use in MNE functions)
+    data_matrix <- matrix(
+        ppt_data$eeg_diff,
+        ncol = length(unique(ppt_data$time) ),
+        byrow = TRUE
+        )
     
     # massive univariate t-tests
     tests_results <- ppt_data %>%
@@ -399,67 +361,72 @@ for (i in seq(from = 1, to = nsims, by = 1) ) {
             ) %>%
         ungroup()
     
-    # finding onsets
-    onset_offset_raw_p <- find_onset_offset(
-        tests_results$pval <= aath,
-        tests_results$time
-        )
-    onset_offset_bh <- find_onset_offset(
-        tests_results$pval_bh <= aath,
-        tests_results$time
-        )
-    onset_offset_by <- find_onset_offset(
-        tests_results$pval_by <= aath,
-        tests_results$time
-        )
-    onset_offset_holm <- find_onset_offset(
-        tests_results$pval_holm <= aath,
-        tests_results$time
-        )
+    # initialising empty dataframe
+    temp_sim_results <- data.frame()
     
-    # using the changepoint package to identify onsets and offsets
-    res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 2)
-    onset_offset_cpt <- c(tests_results$time[res@cpts[1]], tests_results$time[res@cpts[2]])
+    # for each significance (alpha) threshold
+    for (alpha_level in significance_thresholds) {
+        
+        # using the binary segmentation method to identify onsets and offsets
+        res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 2)
+        onset_offset_cpt <- c(tests_results$time[res@cpts[1]], tests_results$time[res@cpts[2]])
     
-    # converting data to a matrix
-    data_matrix <- matrix(
-        ppt_data$eeg_diff,
-        ncol = length(unique(ppt_data$time) ),
-        byrow = TRUE
-        )
-    
-    # running the MNE cluster-based permutation
-    p_values_cluster_mass <- freq_stats_cluster_matrix(
-        X = data_matrix,
-        timesteps = unique(ppt_data$time),
-        cluster_type = "mass",
-        alpha_level = aath
-        )
-    p_values_tfce <- freq_stats_cluster_matrix(
-        X = data_matrix,
-        timesteps = unique(ppt_data$time),
-        cluster_type = "tfce",
-        alpha_level = aath
-        )
-    
-    # putting everything together
-    temp_sim_results <- data.frame(
-        simulation_id = formatC(x = i, width = 3, flag = 0),
-        onset_p = onset_offset_raw_p[1],
-        offset_p = onset_offset_raw_p[2],
-        onset_bh = onset_offset_bh[1],
-        offset_bh = onset_offset_bh[2],
-        onset_by = onset_offset_by[1],
-        offset_by = onset_offset_by[2],
-        onset_holm = onset_offset_holm[1],
-        offset_holm = onset_offset_holm[2],
-        onset_cpt = onset_offset_cpt[1],
-        offset_cpt = onset_offset_cpt[2],
-        onset_cluster_mass = unique(p_values_cluster_mass$cluster_onset),
-        offset_cluster_mass = unique(p_values_cluster_mass$cluster_offset),
-        onset_cluster_tfce = unique(p_values_tfce$cluster_onset),
-        offset_cluster_tfce = unique(p_values_tfce$cluster_offset)
-        )
+        # finding onsets
+        onset_offset_raw_p <- find_onset_offset(
+            tests_results$pval <= alpha_level,
+            tests_results$time
+            )
+        onset_offset_bh <- find_onset_offset(
+            tests_results$pval_bh <= alpha_level,
+            tests_results$time
+            )
+        onset_offset_by <- find_onset_offset(
+            tests_results$pval_by <= alpha_level,
+            tests_results$time
+            )
+        onset_offset_holm <- find_onset_offset(
+            tests_results$pval_holm <= alpha_level,
+            tests_results$time
+            )
+        
+        # running the MNE cluster-based permutation
+        p_values_cluster_mass <- freq_stats_cluster_matrix(
+            X = data_matrix,
+            timesteps = unique(ppt_data$time),
+            cluster_type = "mass",
+            alpha_level = alpha_level
+            )
+        p_values_tfce <- freq_stats_cluster_matrix(
+            X = data_matrix,
+            timesteps = unique(ppt_data$time),
+            cluster_type = "tfce",
+            alpha_level = alpha_level
+            )
+        
+        # putting everything together
+        alpha_temp_sim_results <- data.frame(
+            simulation_id = formatC(x = i, width = 3, flag = 0),
+            alpha_level = alpha_level,
+            onset_p = onset_offset_raw_p[1],
+            offset_p = onset_offset_raw_p[2],
+            onset_bh = onset_offset_bh[1],
+            offset_bh = onset_offset_bh[2],
+            onset_by = onset_offset_by[1],
+            offset_by = onset_offset_by[2],
+            onset_holm = onset_offset_holm[1],
+            offset_holm = onset_offset_holm[2],
+            onset_cpt = onset_offset_cpt[1],
+            offset_cpt = onset_offset_cpt[2],
+            onset_cluster_mass = unique(p_values_cluster_mass$cluster_onset),
+            offset_cluster_mass = unique(p_values_cluster_mass$cluster_offset),
+            onset_cluster_tfce = unique(p_values_tfce$cluster_onset),
+            offset_cluster_tfce = unique(p_values_tfce$cluster_offset)
+            )
+        
+        # appending to previous results
+        temp_sim_results <- bind_rows(temp_sim_results, alpha_temp_sim_results)
+        
+    }
     
     # bind these results with the brms results
     eps_threshold_results <- relocate(eps_threshold_results, simulation_id, .before = 1)
