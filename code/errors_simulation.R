@@ -164,7 +164,7 @@ freq_stats_cluster_matrix <- function (
         # using the first slice of the 3D array
         p_values_ <- np$transpose(np$ones_like(X_np[1, , drop = FALSE]) )
         
-        # defining the (main) cluster onsef and offset
+        # defining the (main) cluster onset and offset
         main_cluster_onset <- clusters[which(p_values < alpha_level)][[1]][[1]]$start+1
         main_cluster_offset <- clusters[which(p_values < alpha_level)][[1]][[1]]$stop
         

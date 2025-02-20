@@ -238,23 +238,24 @@ researchers are interested in testing whether and when such measures
 differ across conditions and/or groups. The conventional approach
 consists in conducting mass-univariate statistics through time followed
 by some form of multiplicity correction (e.g., FDR, FWER) or
-cluster-based inference. However, these cluster-based methods have an
-important downside: they shift the focus of inference from the timepoint
-to the cluster level, thus preventing any conclusion to be made about
-the onset or offset of effects (e.g., differences across conditions or
-groups). Here, we introduce a \emph{model-based} approch for analysing
-M/EEG timeseries such as ERPs or timecourses of decoding performance and
-their differences across conditions or groups. This approach relies on
-Bayesian generalised additive multilevel models, which output the
-posterior probabilility of the effect being above 0 (or above chance) at
-every timestep, while naturally taking into account the temporal
-dependencies and between-subject variability present in such data. Using
-both simulation and actual EEG data, we show that the proposed approach
-largely outperforms conventional methods in determining both the onset
-and offset of M/EEG effects (e.g., ERPs difference, decoding
-performance), producting more precise and more reliable estimates. We
-provide an R package implementing the approach and illustrate how to
-integrate it into M/EEG statistical pipelines in MNE-Python.}
+cluster-based inference. However, while allowing efficient error-rates
+control, cluster-based methods have an important downside: they shift
+the focus of inference from the timepoint to the cluster level, thus
+preventing any conclusion to be made about the precise onset or offset
+of effects (e.g., differences across conditions or groups). Here, we
+introduce a \emph{model-based} approch for analysing M/EEG timeseriesn
+such as ERPs or decoding performance through time, and their differences
+across conditions or groups. This approach relies on Bayesian
+generalised additive multilevel models and outputs the posterior
+probabilility of the effect being above 0 (or above chance) at every
+timestep, while naturally taking into account the temporal dependencies
+and between-subject variability present in such data. Using both
+simulated and actual M/EEG data, we show that the proposed approach
+largely outperforms conventional methods in estimating the onset and
+offset of M/EEG effects, producing more precise and more reliable
+estimates. We provide an R package implementing the approach and
+illustrate how to integrate it into M/EEG statistical pipelines in
+MNE-Python.}
 
 \keywords{EEG, MEG, generalised additive models, mixed-effects
 models, multilevel models, Bayesian statistics, brms}
@@ -388,6 +389,23 @@ Here are some useful references to be discussed
 approaches)\ldots{} Clusters failures (\citeproc{ref-eklund2016}{Eklund
 et al., 2016})\ldots{}
 
+\subsection{Problem statement}\label{problem-statement}
+
+Description of cluster-based approaches (see
+\citeproc{ref-sassenhagen2019}{Sassenhagen \& Draschkow, 2019})\ldots{}
+As pointed by the original authors themselves
+(\citeproc{ref-maris2007}{Maris \& Oostenveld, 2007}), ``there There is
+a conflict between this interest in localized effects and our choice for
+a global null hypothesis: by controlling the FA {[}false alarm{]} rate
+under this global null hypothesis, one cannot quantify the uncertainty
+in the spatiotemporal localization of the effect''
+(\citeproc{ref-maris2007}{Maris \& Oostenveld, 2007};
+\citeproc{ref-sassenhagen2019}{Sassenhagen \& Draschkow, 2019})\ldots{}
+In contrast, the proposed approach, based on Bayesian generalised
+additive multilevel models, allows quantifying the probability of
+effects at the level of timesteps, voxels, sensors (etc), while
+naturally taking into account spatiotemporal dependencies.
+
 \subsection{Previous work}\label{previous-work}
 
 Recent example of GLM for EEG (\citeproc{ref-fischer2013}{Fischer \&
@@ -397,12 +415,17 @@ Ullsperger, 2013}; \citeproc{ref-wuxfcllhorst2025}{Wüllhorst et al.,
 two-stage regression analysis (i.e., individual-level then group-level,
 \citeproc{ref-dunagan2024}{Dunagan et al., 2024})\ldots{}
 
+See also the rERP framework (\citeproc{ref-smith2014a}{N. J. Smith \&
+Kutas, 2014a}, \citeproc{ref-smith2014b}{2014b}) and Tremblay \& Newman
+(\citeproc{ref-tremblay2014}{2014})\ldots{}
+
 From Dimigen \& Ehinger (\citeproc{ref-dimigen2021}{2021}): Recently,
 spline regression has been applied to ERPs (e.g.,
 \citeproc{ref-hendrix2017}{Hendrix et al., 2017};
 \citeproc{ref-kryuchkova2012}{Kryuchkova et al., 2012})\ldots{} GAMMs
 for EEG data (\citeproc{ref-abugaber2023}{Abugaber et al., 2023};
-\citeproc{ref-meulman2015}{Meulman et al., 2015})\ldots{}
+\citeproc{ref-meulman2015}{Meulman et al., 2015},
+\citeproc{ref-meulman2023}{2023})\ldots{}
 
 Disentangling overlapping processes
 (\citeproc{ref-skukies_brain_2024}{Skukies et al., 2024};
@@ -411,8 +434,11 @@ Weighting single trials (\citeproc{ref-pernet2022}{Pernet,
 2022})\ldots{} The LIMO toolbox (\citeproc{ref-pernet2011}{Pernet et
 al., 2011})\ldots{}
 
-Using Bayes factors for decoding performance
-(\citeproc{ref-teichmann2022}{Teichmann, 2022})\ldots{}
+Recently, Teichmann (\citeproc{ref-teichmann2022}{2022}) provided a
+detailed tutorial on using Bayes factors (BFs) to analyse the 1D or 2D
+output from MVPA, that is, for testing, at every timestep, whether
+decoding performance is above chance level. However, this approach
+provides timeseries of BFs that ignores temporal dependencies..
 
 \subsection{Bayesian regression
 modelling}\label{bayesian-regression-modelling}
@@ -426,13 +452,15 @@ models}\label{generalised-additive-models}
 See for instance these tutorials
 (\citeproc{ref-suxf3skuthy2017}{Sóskuthy, 2017};
 \citeproc{ref-winter2016}{Winter \& Wieling, 2016}) or application to
-phonetic data (\citeproc{ref-wieling2018}{Wieling, 2018}) or this
-introduction (\citeproc{ref-baayen2020}{Baayen \& Linke, 2020}) or these
-reference books (\citeproc{ref-hastie2017}{Hastie \& Tibshirani, 2017};
+phonetic data (\citeproc{ref-suxf3skuthy2021}{Sóskuthy, 2021};
+\citeproc{ref-wieling2018}{Wieling, 2018}) or this introduction
+(\citeproc{ref-baayen2020}{Baayen \& Linke, 2020}) or these reference
+books (\citeproc{ref-hastie2017}{Hastie \& Tibshirani, 2017};
 \citeproc{ref-wood2017}{Wood, 2017a})\ldots{} application to
 pupillometry (\citeproc{ref-vanrij2019}{Rij et al., 2019})\ldots{}
 GAMLSS for neuroimaging data (\citeproc{ref-dinga2021}{Dinga et al.,
-2021})\ldots{}
+2021})\ldots{} Modelling auto-correlation in GAMMs + EEG example
+(\citeproc{ref-baayen2018}{Baayen et al., 2018})\ldots{}
 
 In generalised additive models (GAMs), the functional relationship
 between predictors and response variable is decomposed into a sum of
@@ -442,7 +470,7 @@ following form:
 \[
 \begin{aligned} 
 y_{i} &\sim \mathrm{EF}\left(\mu_{i}, \phi\right)\\
-g\left(\mu_i\right) &=  \underbrace{A_{i} + \mathbf{X}_{i} \gamma}_{\text{parametric part}} + \underbrace{\sum_{j=1}^{J} f_{j}\left(x_{ij}\right)}_{\text{non-parametric part}}
+g\left(\mu_i\right) &= \underbrace{\mathbf{A}_{i} \gamma}_{\text{parametric part}} + \underbrace{\sum_{j=1}^{J} f_{j}\left(x_{ij}\right)}_{\text{non-parametric part}}
 \end{aligned}
 \]
 
@@ -450,12 +478,12 @@ where \(y_{i} \sim \mathrm{EF}\left(\mu_{i}, \phi\right)\) denotes that
 the observations \(y_{i}\) are distributed as some member of the
 exponential family of distributions (e.g., Gaussian, Gamma, Beta,
 Poisson) with mean \(\mu_{i}\) and scale parameter \(\phi\);
-\(g(\cdot)\) is the link function, \(A\) is an offset,
-\(\mathbf{X}_{i}\) is the \(i\)th row of a parametric model matrix,
-\(\gamma\) is a vector of parameters for the parametric terms, \(f_{j}\)
-is a smooth function of covariate \(x_{j}\). The smooth functions
-\(f_{j}\) are represented in the model via penalised splines basis
-expansions of the covariates, that are a weighted sum of basis
+\(g(\cdot)\) is the link function, \(\mathbf{A}_{i}\) is the \(i\)th row
+of a known parametric model matrix, \(\gamma\) is a vector of parameters
+for the parametric terms (to be estimated), \(f_{j}\) is a smooth
+function of covariate \(x_{j}\) (to be estimated as well). The smooth
+functions \(f_{j}\) are represented in the model via penalised splines
+basis expansions of the covariates, that are a weighted sum of basis
 functions:
 
 \[
@@ -469,13 +497,26 @@ coefficients are penalised (usually through the squared of the smooth
 functions' second derivative) in a way that can be interpreted as a
 prior on the ``wiggliness'' of the function\ldots{}
 
+Terminology: \emph{splines} are functions composed of simpler functions.
+These simpler functions are basis functions (e.g., a cubic polynomial)
+and the set of basis functions is a \emph{basis}. Each basis function
+gets its coefficient and the resultant spline is the sum of these
+weighted basis functions.
+
 \subsection{Bayesian generalised additive multilevel
 models}\label{bayesian-generalised-additive-multilevel-models}
 
-Now describe the Bayesian GAMM\ldots{} Proper inclusion of
-varying/random effects in the model specification protects against
-overly wiggly curves (\citeproc{ref-baayen2020}{Baayen \& Linke,
-2020})\ldots{}
+Now describe the Bayesian GAMM (\citeproc{ref-miller2025}{Miller,
+2025})\ldots{} Proper inclusion of varying/random effects in the model
+specification protects against overly wiggly curves
+(\citeproc{ref-baayen2020}{Baayen \& Linke, 2020})\ldots{} Generalising
+to scale and shape or ``distributional GAMs''
+(\citeproc{ref-rigby2005}{Rigby \& Stasinopoulos, 2005};
+\citeproc{ref-umlauf2018}{Umlauf et al., 2018}) and applied to
+neuroimaging data (\citeproc{ref-dinga2021}{Dinga et al., 2021})\ldots{}
+
+Instead of averaring, obtain the smooth ERP signal from multilevel
+GAM\ldots{} less susceptible to outliers (Meulman et al., 2023)\ldots{}
 
 \subsection{Objectives}\label{objectives}
 
@@ -488,7 +529,7 @@ of a model-based approach (i.e., Bayesian GAMMs) to conventional methods
 
 \subsection{M/EEG data simulation}\label{meeg-data-simulation}
 
-Following the approach used by Sassenhagen \& Draschkow
+Following the approach of Sassenhagen \& Draschkow
 (\citeproc{ref-sassenhagen2019}{2019}) and Rousselet
 (\citeproc{ref-rousselet_using_2025}{2025}), we simulated EEG data
 stemming from two conditions, one with noise only, and the other with
@@ -539,7 +580,7 @@ offset are indicated by the vertical dashed lines.}
 We then fitted a Bayesian GAM using the \texttt{brms} package
 (\citeproc{ref-brms2017}{Bürkner, 2017}, \citeproc{ref-brms2018}{2018};
 \citeproc{ref-nalborczyk2019}{Nalborczyk et al., 2019}). We used the
-default priors in \texttt{brms}, that is, weakly informative priors. We
+default priors in \texttt{brms} (i.e., weakly informative priors). We
 ran eight Markov Chain Monte-Carlo (MCMC) to approximate the posterior
 distribution, including each 5000 iterations and a warmup of 2000
 iterations, yielding a total of \(8 \times (5000-2000) = 24000\)
@@ -547,7 +588,8 @@ posterior samples to use for inference. Posterior convergence was
 assessed examining trace plots as well as the Gelman--Rubin statistic
 \(\hat{R}\). The \texttt{brms} package uses the same syntax as the
 \texttt{R} package \texttt{mgcv} v 1.9-1 (\citeproc{ref-mgcv}{Wood,
-2017b}) for specifying smooth effects.
+2017b}) for specifying smooth effects. Figure~\ref{fig-post-prob-test}
+shows the predictions of this model together with the raw data.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -563,7 +605,7 @@ assessed examining trace plots as well as the Gelman--Rubin statistic
 \CommentTok{\# fitting the GAM}
 \NormalTok{gam }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
     \CommentTok{\# cubic regression splines with k{-}1 basis functions}
-\NormalTok{    eeg }\SpecialCharTok{\textasciitilde{}}\NormalTok{ condition }\SpecialCharTok{+} \FunctionTok{s}\NormalTok{(time, }\AttributeTok{bs =} \StringTok{"cr"}\NormalTok{, }\AttributeTok{k =} \DecValTok{10}\NormalTok{, }\AttributeTok{by =}\NormalTok{ condition),}
+\NormalTok{    eeg }\SpecialCharTok{\textasciitilde{}}\NormalTok{ condition }\SpecialCharTok{+} \FunctionTok{s}\NormalTok{(time, }\AttributeTok{bs =} \StringTok{"cr"}\NormalTok{, }\AttributeTok{k =} \DecValTok{20}\NormalTok{, }\AttributeTok{by =}\NormalTok{ condition),}
     \AttributeTok{data =}\NormalTok{ ppt\_df,}
     \AttributeTok{family =} \FunctionTok{gaussian}\NormalTok{(),}
     \AttributeTok{warmup =} \DecValTok{2000}\NormalTok{,}
@@ -622,8 +664,8 @@ with the conventional thresholds on evidence ratios
 \begin{figure}[!htb]
 
 \caption{\label{fig-post-prob-ratio}Ratio of posterior probability
-according to the GAM. Timesteps above threshold (10) are highlighted in
-green.}
+according to the GAM (on a log10 scale). Timesteps above threshold (10)
+are highlighted in green.}
 
 \centering{
 
@@ -640,7 +682,10 @@ statistics}\label{multilevel-modelling-using-erp-summary-statistics}
 
 Next we fit a hierarchical/multilevel GAM using summary statistics of
 ERPs (mean and SD) at the participant level (similar to what is done in
-meta-analysis).
+meta-analysis). Although it is possible to fit a GAMM at the
+single-trial level, we present a resource-efficient version of the model
+that is fitted directly on the by-participant summary statistics (mean
+and SD)\ldots{}
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -659,7 +704,7 @@ meta-analysis).
 \NormalTok{meta\_gam }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
     \CommentTok{\# using by{-}participant SD of ERPs across trials}
 \NormalTok{    eeg\_mean }\SpecialCharTok{|} \FunctionTok{se}\NormalTok{(eeg\_sd) }\SpecialCharTok{\textasciitilde{}}
-\NormalTok{        condition }\SpecialCharTok{+} \FunctionTok{s}\NormalTok{(time, }\AttributeTok{bs =} \StringTok{"cr"}\NormalTok{, }\AttributeTok{k =} \DecValTok{10}\NormalTok{, }\AttributeTok{by =}\NormalTok{ condition) }\SpecialCharTok{+}
+\NormalTok{        condition }\SpecialCharTok{+} \FunctionTok{s}\NormalTok{(time, }\AttributeTok{bs =} \StringTok{"cr"}\NormalTok{, }\AttributeTok{k =} \DecValTok{20}\NormalTok{, }\AttributeTok{by =}\NormalTok{ condition) }\SpecialCharTok{+}
 \NormalTok{        (}\DecValTok{1} \SpecialCharTok{|}\NormalTok{ participant),}
     \AttributeTok{data =}\NormalTok{ summary\_df,}
     \AttributeTok{family =} \FunctionTok{gaussian}\NormalTok{(),}
@@ -728,8 +773,8 @@ BY01, \citeproc{ref-benjamini2001}{Benjamini \& Yekutieli, 2001}), one
 method that controls the familywise error rate (FWER) (i.e.,
 Holm--Bonferroni method, \citeproc{ref-holm1979}{Holm, 1979}), and two
 cluster-based methods (permutation with a single threshold and TFCE,
-\citeproc{ref-smith2009}{Smith \& Nichols, 2009}). The BH95, BY01, and
-Holm corrections were applied to the p-values using the
+\citeproc{ref-smith2009}{S. Smith \& Nichols, 2009}). The BH95, BY01,
+and Holm corrections were applied to the p-values using the
 \texttt{p.adjust()} function in \texttt{R}. The cluster-based inference
 was implemented using a cluster-sum statistic of squared t-values, as
 implemented in \texttt{MNE-Python}
@@ -771,10 +816,49 @@ error (MAE) and variance of 10.000 simulated datasets\ldots{}
 \subsection{Application to actual MEG
 data}\label{application-to-actual-meg-data}
 
-Assessing the reliability of the proposed approach using some sort of
-split-half reliability (e.g., \citeproc{ref-rosenblatt2018}{Rosenblatt
-et al., 2018})? Using the MEG decoding results of Nalborczyk et al.~(in
-preparation) in 33 participants:
+Next, we assessed the performance of the proposed approach on actual MEG
+data (decoding results of Nalborczyk et al., in preparation). We
+conducted time-resolved multivariate pattern analysis (MVPA), also known
+as decoding\ldots{} As a result, we have a timecourse of decoding
+performance (ROC AUC), bounded between 0 and 1, for each participant
+(for a total of 32 participants). Now, we want to \emph{test} whether
+the group-level average decoding accuracy is above chance (i.e., 0.5) at
+each timestep (Figure~\ref{fig-decoding-data}). We fitted a similar GAM
+as discussed previously, but we replaced the \(\mathrm{Normal}\)
+likelihood function by a \(\mathrm{Beta}\) one to account for the
+bounded nature of AUC values (between 0 and 1) (for a tutorial on Beta
+regression, see \citeproc{ref-coretta2025}{Coretta \& Bürkner, 2025}).
+Note that although we chose a basis dimension of \(k=50\), which seems
+appropriate for the present data, this choice should be adapted
+according to the properties of the modelled data (e.g., signal-to-noise
+ratio, prior low-pass filtering, sampling rate, etc) and should be
+assessed by the usual model checking tools (e.g., posterior predictive
+checks). We also define a region of practical equivalence (ROPE,
+\citeproc{ref-kruschke2017}{Kruschke \& Liddell, 2017}), defined as the
+chance level plus the standard deviation of the (group-level average)
+decoding performance during the baseline period. This ensures
+that\ldots{}\footnote{Could an alternative approach be to include a
+  predictor for ``baseline vs.~after baseline''?}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# fitting the Beta GAM}
+\NormalTok{meg\_decoding\_gam }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
+\NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{s}\NormalTok{(time, }\AttributeTok{bs =} \StringTok{"cr"}\NormalTok{, }\AttributeTok{k =} \DecValTok{50}\NormalTok{),}
+    \AttributeTok{data =}\NormalTok{ decoding\_df,}
+    \AttributeTok{family =} \FunctionTok{Beta}\NormalTok{(),}
+    \AttributeTok{warmup =} \DecValTok{2000}\NormalTok{,}
+    \AttributeTok{iter =} \DecValTok{5000}\NormalTok{,}
+    \AttributeTok{chains =} \DecValTok{4}\NormalTok{,}
+    \AttributeTok{cores =} \DecValTok{4}
+\NormalTok{    )}
+\end{Highlighting}
+\end{Shaded}
+
+We assessed the reliability of the proposed approach using a form of
+permutation-based split-half reliability (e.g.,
+\citeproc{ref-rosenblatt2018}{Rosenblatt et al., 2018}), which consisted
+of the following steps:
 
 \begin{itemize}
 \tightlist
@@ -791,9 +875,33 @@ preparation) in 33 participants:
 This will allow checking that the proposed approach produces reliable
 onset/offset estimates.
 
+\begin{figure}[!htb]
+
+\caption{\label{fig-decoding-data}Group-level average decoding
+performance (N=32) superimposed with the GAM predictions (in blue) and
+the region of practical equivalence (ROPE, in orange) computed from the
+baseline period. The blue horizontal line indicates the timesteps at
+which the posterior probability ratio is equal to or greater than 20.}
+
+\centering{
+
+\includegraphics[width=0.75\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-decoding-data-1.pdf}
+
+}
+
+\end{figure}%
+
+\newpage
+
 \section{Results}\label{results}
 
-\ldots{}
+This section is divided in two parts. First, we present the results from
+the simulation study, assessing the bias and variance of each method
+when applied to simulated data in which the ground truth is known.
+Second, we present the results obtained when applying the different
+methods to actual MEG data (decoding performance through time),
+assessing the reliability of each method and the stability of its
+estimates.
 
 \subsection{Simulation results (bias and
 variance)}\label{simulation-results-bias-and-variance}
@@ -829,10 +937,70 @@ offset estimates for each method.}
 
 \end{figure}%
 
-\subsection{Application to actual EEG data
-(reliability)}\label{application-to-actual-eeg-data-reliability}
+\newpage
 
-\ldots{}
+\subsection{Application to actual MEG data
+(reliability)}\label{application-to-actual-meg-data-reliability}
+
+Figure~\ref{fig-onset-offset} shows the group-level average decoding
+performance through time with onset and offset estimates for each
+method. The \texttt{brms\_full} method is similar to the \texttt{brms}
+method except that the ROPE is defined on the entire dataset rather than
+on the split dataset. Overall, this figure shows that both the
+\texttt{Raw\ p-value} and \texttt{FDR\ BH95} methods were extremely
+lenient, considering that the decoding performance was above chance
+before the onset of the stimulus (false positive) and until the end of
+the trial. The \texttt{Change\ point} and \texttt{Cluster\ mass} methods
+were the most conservative methods, identifying a time window from
+approximately +60ms to +500ms. The \texttt{Holm}, \texttt{TFCE},
+\texttt{brms}, and \texttt{brms\_full} methods produced somewhat similar
+estimates of onset and offset, from approximately +60ms to
++650ms.\footnote{It should be noted that although each method can
+  produce several ``clusters'' of timesteps, we only considered the
+  first (onset) and last (offset) timesteps identified by each method to
+  compute the error (difference).}
+
+\begin{figure}[!htb]
+
+\caption{\label{fig-onset-offset}Group-level average decoding
+performance through time with onset and offset estimates for each method
+(data from Nalborczyk et al., in preparation).}
+
+\centering{
+
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-onset-offset-1.pdf}
+
+}
+
+\end{figure}%
+
+Figure~\ref{fig-reliability} shows two properties of each method: i) the
+median difference between the onset and offset estimates from each data
+split and the onset and offset estimates from the full dataset (x-axis)
+and ii) and the variance of its onset and offset estimates across data
+splits (y-axis). This figure reveals that the \texttt{brms} \emph{onset
+and offset} estimates on each split are the closest to the estimates
+from the full dataset on average (0ms difference for the onset estimate
+and 5ms difference for the offset estimate). The \texttt{Raw\ p-value}
+method has similar performance, but given the aberrant estimates it
+produces (cf. Figure~\ref{fig-onset-offset}), the result that it is
+consistent between data splits and the full dataset is not convincing on
+its own. Overall, the figure reveals that for all other methods, split
+datasets produce later onset estimates and earlier offset estimates (as
+compared to the estimates from the model fitted on the full dataset).
+
+\begin{figure}[!htb]
+
+\caption{\label{fig-reliability}Median absolute error and variance of
+onset (left) and offset (right) estimates for each method.}
+
+\centering{
+
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-reliability-1.pdf}
+
+}
+
+\end{figure}%
 
 \newpage
 
@@ -843,7 +1011,10 @@ offset estimates for each method.}
 \subsection{Summary of the proposed
 approach}\label{summary-of-the-proposed-approach}
 
-\ldots{}
+Overall, before concluding on the onset/offset of effect based on the
+model, we need to ensure that the model provides a faithful description
+of the data-generating process (e.g., via posterior predictive checks
+etc)\ldots{}
 
 \subsection{Increasing potential
 usage}\label{increasing-potential-usage}
@@ -855,6 +1026,19 @@ Prepare a wrapper \texttt{R} package and show how to call it in
 \subsection{Limitations and future
 directions}\label{limitations-and-future-directions}
 
+As in previous simulation work (e.g.,
+\citeproc{ref-rousselet2008}{Rousselet et al., 2008};
+\citeproc{ref-sassenhagen2019}{Sassenhagen \& Draschkow, 2019}), the
+present simulation results depend on various choices such as the
+specific cluster-forming algorithm and threshold, signal-to-noise ratio,
+negative impact of preprocessing steps (e.g., low-pass filter) on
+temporal resolution\ldots{} note however, that the same caveats apply to
+all methods\ldots{}
+
+The error properties depend on the threshold parameter, a value of 10 or
+20 seems to be a reasonable default, but the optimal threshold parameter
+can be adjusted using split-half reliability assessment\ldots{}
+
 Can be applied to any 1D timeseries (e.g., pupillometry,
 electromyography)\ldots{} Extending the approach to spatiotemporal data
 (i.e., time + sensors)\ldots{}
@@ -862,10 +1046,6 @@ electromyography)\ldots{} Extending the approach to spatiotemporal data
 We kept the exemplary models simple, but can be extended by adding
 varying/random effects (intercept and slope) for item (e.g.,
 word)\ldots{} but also continuous predictors at the trial level?
-
-The error properties depend on the threshold parameter, a value of 10 or
-20 seems to be a reasonable default, but the optimal threshold parameter
-can be adjusted using split-half reliability assessment\ldots{}
 
 \subsection{Conclusions}\label{conclusions}
 
@@ -925,6 +1105,13 @@ Baayen, R. H., \& Linke, M. (2020). \emph{Generalized Additive Mixed
 Models} (pp. 563--591). Springer International Publishing.
 \url{https://doi.org/10.1007/978-3-030-46216-1_23}
 
+\bibitem[\citeproctext]{ref-baayen2018}
+Baayen, R. H., Rij, J. van, Cat, C. de, \& Wood, S. (2018).
+\emph{Autocorrelated errors in experimental data in the language
+sciences: Some solutions offered by generalized additive mixed models}
+(pp. 49--69). Springer International Publishing.
+\url{https://doi.org/10.1007/978-3-319-69830-4_4}
+
 \bibitem[\citeproctext]{ref-benjamini1995}
 Benjamini, Y., \& Hochberg, Y. (1995). Controlling the False Discovery
 Rate: A Practical and Powerful Approach to Multiple Testing.
@@ -958,6 +1145,11 @@ Combrisson, E., \& Jerbi, K. (2015). Exceeding chance level by chance:
 and statistical assessment of decoding accuracy. \emph{Journal of
 Neuroscience Methods}, \emph{250}, 126--136.
 \url{https://doi.org/10.1016/j.jneumeth.2015.01.010}
+
+\bibitem[\citeproctext]{ref-coretta2025}
+Coretta, S., \& Bürkner, P.-. C. (2025). \emph{Bayesian beta regressions
+with brms in r: A tutorial for phoneticians}.
+\url{http://dx.doi.org/10.31219/osf.io/f9rqg_v1}
 
 \bibitem[\citeproctext]{ref-dimigen2021}
 Dimigen, O., \& Ehinger, B. V. (2021). Regression-based analysis of
@@ -1079,6 +1271,12 @@ mental representations: the temporal generalization method. \emph{Trends
 in Cognitive Sciences}, \emph{18}(4), 203--210.
 \url{https://doi.org/10.1016/j.tics.2014.01.002}
 
+\bibitem[\citeproctext]{ref-kruschke2017}
+Kruschke, J. K., \& Liddell, T. M. (2017). The Bayesian New Statistics:
+Hypothesis testing, estimation, meta-analysis, and power analysis from a
+Bayesian perspective. \emph{Psychonomic Bulletin \& Review},
+\emph{25}(1), 178--206. \url{https://doi.org/10.3758/s13423-016-1221-4}
+
 \bibitem[\citeproctext]{ref-kryuchkova2012}
 Kryuchkova, T., Tucker, B. V., Wurm, L. H., \& Baayen, R. H. (2012).
 Danger and usefulness are detected early in auditory lexical processing:
@@ -1102,11 +1300,22 @@ of EEG- and MEG-data. \emph{Journal of Neuroscience Methods},
 \emph{164}(1), 177--190.
 \url{https://doi.org/10.1016/j.jneumeth.2007.03.024}
 
+\bibitem[\citeproctext]{ref-meulman2023}
+Meulman, N., Sprenger, S. A., Schmid, M. S., \& Wieling, M. (2023).
+GAM-based individual difference measures for L2 ERP studies.
+\emph{Research Methods in Applied Linguistics}, \emph{2}(3), 100079.
+\url{https://doi.org/10.1016/j.rmal.2023.100079}
+
 \bibitem[\citeproctext]{ref-meulman2015}
 Meulman, N., Wieling, M., Sprenger, S. A., Stowe, L. A., \& Schmid, M.
 S. (2015). Age Effects in L2 Grammar Processing as Revealed by ERPs and
 How (Not) to Study Them. \emph{PLOS ONE}, \emph{10}(12), e0143328.
 \url{https://doi.org/10.1371/journal.pone.0143328}
+
+\bibitem[\citeproctext]{ref-miller2025}
+Miller, D. L. (2025). Bayesian views of generalized additive modelling.
+\emph{Methods in Ecology and Evolution}.
+\url{https://doi.org/10.1111/2041-210x.14498}
 
 \bibitem[\citeproctext]{ref-MetBrewer}
 Mills, B. R. (2022). \emph{{MetBrewer}: Color palettes inspired by works
@@ -1161,6 +1370,12 @@ R Core Team. (2023). \emph{{R}: A language and environment for
 statistical computing}. R Foundation for Statistical Computing.
 \url{https://www.R-project.org/}
 
+\bibitem[\citeproctext]{ref-rigby2005}
+Rigby, R. A., \& Stasinopoulos, D. M. (2005). Generalized Additive
+Models for Location, Scale and Shape. \emph{Journal of the Royal
+Statistical Society Series C: Applied Statistics}, \emph{54}(3),
+507--554. \url{https://doi.org/10.1111/j.1467-9876.2005.00510.x}
+
 \bibitem[\citeproctext]{ref-vanrij2019}
 Rij, J. van, Hendriks, P., Rijn, H. van, Baayen, R. H., \& Wood, S. N.
 (2019). Analyzing the Time Course of Pupillometric Data. \emph{Trends in
@@ -1205,6 +1420,17 @@ Skukies, R., Schepers, J., \& Ehinger, B. (2024, December 9).
 \emph{Brain responses vary in duration - modeling strategies and
 challenges}. \url{https://doi.org/10.1101/2024.12.05.626938}
 
+\bibitem[\citeproctext]{ref-smith2014a}
+Smith, N. J., \& Kutas, M. (2014a). Regression{-}based estimation of ERP
+waveforms: I. The rERP framework. \emph{Psychophysiology}, \emph{52}(2),
+157--168. \url{https://doi.org/10.1111/psyp.12317}
+
+\bibitem[\citeproctext]{ref-smith2014b}
+Smith, N. J., \& Kutas, M. (2014b). Regression{-}based estimation of ERP
+waveforms: II. Nonlinear effects, overlap correction, and practical
+considerations. \emph{Psychophysiology}, \emph{52}(2), 169--181.
+\url{https://doi.org/10.1111/psyp.12320}
+
 \bibitem[\citeproctext]{ref-smith2009}
 Smith, S., \& Nichols, T. (2009). Threshold-free cluster enhancement:
 Addressing problems of smoothing, threshold dependence and localisation
@@ -1216,10 +1442,27 @@ Sóskuthy, M. (2017). \emph{Generalised additive mixed models for dynamic
 analysis in linguistics: A practical introduction}.
 \url{https://doi.org/10.48550/ARXIV.1703.05339}
 
+\bibitem[\citeproctext]{ref-suxf3skuthy2021}
+Sóskuthy, M. (2021). Evaluating generalised additive mixed modelling
+strategies for dynamic speech analysis. \emph{Journal of Phonetics},
+\emph{84}, 101017. \url{https://doi.org/10.1016/j.wocn.2020.101017}
+
 \bibitem[\citeproctext]{ref-teichmann2022}
 Teichmann, L. (2022). An empirically driven guide on using bayes factors
 for m/EEG decoding. \emph{Aperture Neuro}, \emph{2}, 1--10.
 \url{https://doi.org/10.52294/apertureneuro.2022.2.maoc6465}
+
+\bibitem[\citeproctext]{ref-tremblay2014}
+Tremblay, A., \& Newman, A. J. (2014). Modeling nonlinear relationships
+in ERP data using mixed{-}effects regression with R examples.
+\emph{Psychophysiology}, \emph{52}(1), 124--139.
+\url{https://doi.org/10.1111/psyp.12299}
+
+\bibitem[\citeproctext]{ref-umlauf2018}
+Umlauf, N., Klein, N., \& Zeileis, A. (2018). BAMLSS: Bayesian Additive
+Models for Location, Scale, and Shape (and Beyond). \emph{Journal of
+Computational and Graphical Statistics}, \emph{27}(3), 612--627.
+\url{https://doi.org/10.1080/10618600.2017.1407325}
 
 \bibitem[\citeproctext]{ref-reticulate}
 Ushey, K., Allaire, J., \& Tang, Y. (2024). \emph{Reticulate: Interface
@@ -1306,110 +1549,6 @@ of methods. \emph{Psychophysiology}, \emph{41}(6), 822--832.
 
 \appendix
 
-\section{Application to time-resolved decoding results (accuracy over
-time)}\label{application-to-time-resolved-decoding-results-accuracy-over-time}
-
-We conducted time-resolved multivariate pattern analysis (MVPA), also
-known as decoding. As a result, we have a timecourse of decoding
-accuracies (e.g., ROC AUC), bounded between 0 and 1, per participant
-(Figure~\ref{fig-mne-decoding})\ldots{}
-
-\begin{figure}[!htb]
-
-\caption{\label{fig-mne-decoding}Exemplary average timecourse of binary
-decoding accuracy (ROC AUC) for each participant. Group-level average
-decoding accuracy is depicted as a grey background density in each
-panel.}
-
-\centering{
-
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-mne-decoding-1.pdf}
-
-}
-
-\end{figure}%
-
-Now, we want to \emph{test} whether the group-level average decoding
-accuracy is above chance (i.e., 0.5) at each timestep. We use a similar
-GAM/GP as previously, but we replace the \(\mathrm{Normal}\) likelihood
-function by a \(\mathrm{Beta}\) one to account for the bounded nature of
-AUC values (between 0 and 1).
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# fitting the GAM}
-\NormalTok{decoding\_gam }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
-\NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{s}\NormalTok{(time, }\AttributeTok{bs =} \StringTok{"cr"}\NormalTok{, }\AttributeTok{k =} \DecValTok{10}\NormalTok{),}
-    \AttributeTok{data =}\NormalTok{ decoding\_data,}
-    \AttributeTok{family =} \FunctionTok{Beta}\NormalTok{(),}
-    \AttributeTok{iter =} \DecValTok{5000}\NormalTok{,}
-    \AttributeTok{chains =} \DecValTok{4}\NormalTok{,}
-    \AttributeTok{cores =} \DecValTok{4}\NormalTok{,}
-    \AttributeTok{file =} \StringTok{"models/decoding\_gam.rds"}
-\NormalTok{    )}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# fitting the GP}
-\NormalTok{decoding\_gp }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
-\NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{gp}\NormalTok{(time, }\AttributeTok{k =} \DecValTok{20}\NormalTok{),}
-    \AttributeTok{data =}\NormalTok{ decoding\_data,}
-    \AttributeTok{family =} \FunctionTok{Beta}\NormalTok{(),}
-    \AttributeTok{control =} \FunctionTok{list}\NormalTok{(}\AttributeTok{adapt\_delta =} \FloatTok{0.99}\NormalTok{),}
-    \AttributeTok{iter =} \DecValTok{5000}\NormalTok{,}
-    \AttributeTok{chains =} \DecValTok{4}\NormalTok{,}
-    \AttributeTok{cores =} \DecValTok{4}\NormalTok{,}
-    \AttributeTok{file =} \StringTok{"models/decoding\_gp.rds"}
-\NormalTok{    )}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{figure}[H]
-
-\caption{Posterior predictions of the GAM (left) and GP (right) fitted
-on decoding accuracy over time.}
-
-{\centering \includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/decoding-preds-1.pdf}
-
-}
-
-\end{figure}%
-
-Next, we plot the posterior probability of decoding accuracy being above
-chance level (plus some epsilon) (Figure~\ref{fig-decoding-post}).
-
-\begin{figure}[!htb]
-
-\caption{\label{fig-decoding-post}Posterior probability of decoding
-accuracy being above chance level according to the GAM (left) or the GP
-(right).}
-
-\centering{
-
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-decoding-post-1.pdf}
-
-}
-
-\end{figure}%
-
-\begin{figure}[!htb]
-
-\caption{\label{fig-decoding-ratio}Ratio of posterior probabilities of
-decoding accuracy being above chance level according to the GAM (left)
-or the GP (right).}
-
-\centering{
-
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-decoding-ratio-1.pdf}
-
-}
-
-\end{figure}%
-
-\newpage
-
 \section{Application to 2D time-resolved decoding results
 (cross-temporal
 generalisation)}\label{application-to-2d-time-resolved-decoding-results-cross-temporal-generalisation}
@@ -1445,8 +1584,7 @@ functions)\ldots{}
 \CommentTok{\# fitting a GAM with two temporal dimensions}
 \NormalTok{timegen\_gam }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
     \CommentTok{\# 2D thin{-}plate spline (tp)}
-    \CommentTok{\# auc \textasciitilde{} s(train\_time, test\_time, bs = "tp", k = 10),}
-\NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{t2}\NormalTok{(train\_time, test\_time, }\AttributeTok{bs =} \StringTok{"tp"}\NormalTok{, }\AttributeTok{k =} \DecValTok{10}\NormalTok{),}
+\NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{t2}\NormalTok{(train\_time, test\_time, }\AttributeTok{bs =} \StringTok{"tp"}\NormalTok{, }\AttributeTok{k =} \DecValTok{20}\NormalTok{),}
     \AttributeTok{data =}\NormalTok{ timegen\_data,}
     \AttributeTok{family =} \FunctionTok{Beta}\NormalTok{(),}
     \AttributeTok{iter =} \DecValTok{5000}\NormalTok{,}
@@ -1479,6 +1617,9 @@ level (2D GAM).}
 }
 
 \end{figure}%
+
+Could be extended to spatial and temporal dimensions with formulas such
+as \texttt{te(x,\ y,\ Time,\ d\ =\ c(2,\ 1)\ )}\ldots{}
 
 \newpage
 
@@ -1538,41 +1679,6 @@ distance between the covariate \(\mathbf{s}_{i}\) and the knot location
 
 \newpage
 
-\section{Threshold-free cluster
-enhancement}\label{threshold-free-cluster-enhancement}
-
-Cluster-based permutation approaches require defining a cluster-forming
-threshold (e.g., a t- or f-value) as the initial step of the algorithm.
-As different cluster-forming thresholds lead to clusters with different
-spatial or temporal extent, this threshold modulates the sensitivity of
-the subsequent permutation test. The threshold-free cluster enhancement
-method (TFCE) was introduced by Smith \& Nichols
-(\citeproc{ref-smith2009}{2009}) to overcome this arbitrary threshold.
-
-In brief, the TFCE method works as follows. Instead of picking an
-arbitrary cluster-forming threshold (e.g., \(t=2\)), we try all (or
-many) possible thresholds in a given range and check whether a given
-timestep/voxel belongs to a significant cluster under any of the set of
-thresholds\ldots{} Then, instead of using cluster mass, we use a
-weighted average between the cluster extend (\(e\), how broad is the
-cluster, that is, how many connected samples it contains) and the
-cluster height (\(h\), how high is the cluster, that is, how large is
-the test statistic) according to the formula:
-
-\[
-\text{TFCE} = \int_{h} e(h)^{E} h^{H} \mathrm{d}h
-\]
-
-Where\ldots{} the parameters \(E\) and \(H\) are set a priori and
-control the influence of the extend and height on the TFCE. Then,
-p-value for timestep/voxel \(i\) is computed by comparing it TFCE with
-the null distribution of TFCE values. For each permuted signal, we keep
-the maximal value over the whole signal for the null distribution of the
-TFCE\ldots. But see Sassenhagen \& Draschkow
-(\citeproc{ref-sassenhagen2019}{2019})\ldots{}
-
-\newpage
-
 \section{\texorpdfstring{Integration with
 \texttt{MNE-Python}}{Integration with MNE-Python}}\label{integration-with-mne-python}
 
@@ -1581,18 +1687,7 @@ epochs\ldots{}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\CommentTok{\# suggest a package name}
-\FunctionTok{library}\NormalTok{(available)}
-\FunctionTok{suggest}\NormalTok{(}
-    \AttributeTok{text =} \StringTok{"Time{-}resolved electrophysiological measurements such as those offered by magneto{-} or electro{-}encephalography (M/EEG) provide a unique window onto neural activity underlying cognitive processes. Typically, researchers are interested in testing whether and when such measures differ across conditions and/or groups. The conventional approach consists in conducting mass{-}univariate statistics through time followed by some form of multiplicity correction (e.g., FDR, FWER) or cluster{-}based inference. However, these cluster{-}based methods have an important downside: they shift the focus of inference from the timepoint to the cluster level, thus preventing any conclusion to be made about the onset or offset of effects (e.g., differences across conditions or groups). Here, we introduce a *model{-}based* approch for analysing M/EEG timeseries such as ERPs or timecourses of decoding performance and their differences across conditions or groups. This approach relies on Bayesian generalised additive multilevel models, which output the posterior probabilility of the effect being above 0 (or above chance) at every timestep, while naturally taking into account the temporal dependencies and between{-}subject variability present in such data. Using both simulation and actual EEG data, we show that the proposed approach largely outperforms conventional methods in determining both the onset and offset of M/EEG effects (e.g., ERPs difference, decoding performance), producting more precise and more reliable estimates. We provide an R package implementing the approach and illustrate how to integrate it into M/EEG statistical pipelines in MNE{-}Python."}
-\NormalTok{    )}
-
-\NormalTok{available}\SpecialCharTok{:::}\FunctionTok{namr}\NormalTok{(}
-    \AttributeTok{title =} \StringTok{"Precise temporal localisation of M/EEG effects with Bayesian generalised additive multilevel models"}\NormalTok{,}
-    \AttributeTok{verb =} \ConstantTok{TRUE}
-\NormalTok{    )}
-
-\CommentTok{\# to{-}do adding some code here...}
+\CommentTok{\# TO{-}DO: adding some code here...}
 \end{Highlighting}
 \end{Shaded}
 
