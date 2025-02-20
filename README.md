@@ -14,4 +14,4 @@ The figure below shows a summary of the simulation results, revealing that the p
 
 The figure belows shows the group-level average decoding performance through time with onset and offset estimates for each method. The `brms_full` method is similar to the `brms` method except that the ROPE is defined on the entire dataset rather than on the split dataset. Overall, this figure shows that both the `Raw p-value` and `FDR BH95` methods were extremely lenient, considering that the decoding performance was above chance before the onset of the stimulus (false positive) and until the end of the trial. The `Change point` and `Cluster mass` methods were the most conservative methods, identifying a time window from approximately +60ms to +500ms. The `Holm`, `TFCE`, `brms`, and `brms_full` methods produced somewhat similar estimates of onset and offset, from approximately +60ms to +650ms.
 
-![MEG data](figures/meg_decoding_results_all_methods.png.png)
+![MEG data](figures/meg_decoding_results_all_methods.png)
