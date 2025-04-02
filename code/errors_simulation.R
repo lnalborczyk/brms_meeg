@@ -2,7 +2,7 @@
 # Monte-Carlo simulation of onset/offset error properties #
 # Written by Ladislas Nalborczyk                          #
 # Contact: ladislas.nalborczyk@gmail.com                  #
-# Last updated on February 13, 2025                       #
+# Last updated on March 31, 2025                          #
 ###########################################################
 
 # importing R packages
@@ -13,6 +13,9 @@ library(tidybayes)
 library(brms)
 
 # importing Python modules
+# use_condaenv("/Users/ladislas/opt/anaconda3/envs/r-reticulate/bin/python", required = TRUE)
+# use_condaenv("r-reticulate", required = TRUE)
+use_condaenv("r-reticulate3", conda = "~/miniforge3/bin/conda", required = TRUE)
 np <- import("numpy")
 mne <- import("mne")
 
@@ -29,7 +32,7 @@ source("code/functions.R")
 meanpower <- unlist(read.table("code/meanpower.txt") )
 
 # defining the number of simulations to be performed
-nsims <- 1e2
+nsims <- 100
 
 # defining simulation parameters
 n_trials <- 50 # number of trials
@@ -220,7 +223,7 @@ freq_stats_cluster_matrix <- function (
 #     srate = srate, ronset = ronset
 #     )
 
-# testing the find_onset_offset function
+# testing the find_onset_offset() function
 # find_onset_offset(
 #     mask = tests_results$pval[1:nrow(tests_results)] <= aath,
 #     timeseries = tests_results$time[1:nrow(tests_results)]
@@ -233,7 +236,7 @@ sim_results <- data.frame()
 for (i in seq(from = 1, to = nsims, by = 1) ) {
     
     # printing progress
-    cat("Simulation number:", i, "out of", nsims, "simulations...\n")
+    cat("\n-------- Simulation number:", i, "out of", nsims, "simulations...\n")
     
     # simulating some EEG data
     raw_df <- generate_data(
@@ -262,7 +265,7 @@ for (i in seq(from = 1, to = nsims, by = 1) ) {
     meta_gam <- brm(
         # using by-participant SD of ERPs across trials
         eeg_mean | se(eeg_sd) ~
-            condition + s(time, bs = "cr", k = 10, by = condition) +
+            condition + s(time, bs = "cr", k = 20, by = condition) +
             (1 | participant),
         data = summary_df,
         family = gaussian(),
@@ -270,11 +273,20 @@ for (i in seq(from = 1, to = nsims, by = 1) ) {
         iter = 5000,
         chains = 8,
         cores = 8
+        # backend = "cmdstanr",
+        # opencl = opencl(c(0, 0) )
+        # threads = threading(1),
+        # stan_model_args = list(stanc_options = list("O1") )
         )
     
+    # checking the model's predictions
+    # conditional_effects(meta_gam)
+    
     # defining values of eps and threshold to test
-    eps_values <- seq(from = 0, to = 0.1, by = 0.01)
-    threshold_values <- seq(from = 1, to = 30, by = 1)
+    # eps_values <- seq(from = 0, to = 0.1, by = 0.01)
+    # threshold_values <- seq(from = 1, to = 30, by = 1)
+    eps_values <- 0
+    threshold_values <- c(1, 3, 6, 10, 20, 50, 100)
     
     # number of posterior samples to use
     n_post_samples <- 1e3
@@ -292,7 +304,7 @@ for (i in seq(from = 1, to = nsims, by = 1) ) {
     for (j in seq_len(nrow(eps_threshold_results) ) ) {
         
         # printing progress
-        cat("Assessing combination:", j, "out of", nrow(eps_threshold_results), "combinations...")
+        # cat("Assessing combination:", j, "out of", nrow(eps_threshold_results), "combinations...\n")
         
         # retrieving current eps and threshold values
         eps <- eps_threshold_results$eps[j]
@@ -300,24 +312,33 @@ for (i in seq(from = 1, to = nsims, by = 1) ) {
         
         # computing probability metrics with the current eps value
         prob_y_above_0 <- meta_gam$data %>%
+            # crossing(
+            # time = unique(meta_gam$data$time),
+            # condition = unique(meta_gam$data$condition),
+            # participant = unique(meta_gam$data$participant),
+            # ) %>%
+            # meta_gam$data %>%
             add_epred_draws(object = meta_gam, ndraws = n_post_samples) %>%
+            # add_epred_draws(object = meta_gam) %>%
             data.frame() %>%
             dplyr::select(participant, time, condition, .epred, .draw) %>%
             pivot_wider(names_from = condition, values_from = .epred) %>%
             mutate(epred_diff = cond2 - cond1) %>%
             # computing mean posterior probability at the participant level
-            group_by(participant, time) %>%
-            summarise(m = mean(epred_diff > eps) ) %>%
-            ungroup() %>%
+            # group_by(participant, time) %>%
+            # summarise(m = mean(epred_diff > eps) ) %>%
+            # ungroup() %>%
             # computing mean posterior prob at the group level
             group_by(time) %>%
-            summarise(m = mean(m) ) %>%
+            summarise(m = mean(epred_diff > eps) ) %>%
+            # summarise(m = mean(m) ) %>%
             mutate(prob_ratio = m / (1 - m) ) %>%
             ungroup()
         
         # sanity visual check
         # prob_y_above_0 %>%
-        #     ggplot(aes(x = time, y = m) ) +
+        #     # ggplot(aes(x = time, y = m) ) +
+        #     ggplot(aes(x = time, y = log(prob_ratio) ) ) +
         #     geom_line()
         
         # finding onset, offset, and peak for the current threshold

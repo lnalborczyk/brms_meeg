@@ -21,3 +21,5 @@ knitr
 Rcpp
 brms
 ggrepel
+tidytext
+reticulate

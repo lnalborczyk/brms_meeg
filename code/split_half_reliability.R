@@ -2,7 +2,7 @@
 # Split-half reliability of onset/offset estimates        #
 # Written by Ladislas Nalborczyk                          #
 # Contact: ladislas.nalborczyk@gmail.com                  #
-# Last updated on February 20, 2025                       #
+# Last updated on April 2, 2025                           #
 ###########################################################
 
 # importing R packages
@@ -18,6 +18,7 @@ library(brms)
 theme_set(theme_light(base_size = 12, base_family = "Open Sans") )
 
 # importing Python modules
+use_condaenv("r-reticulate3", conda = "~/miniforge3/bin/conda", required = TRUE)
 np <- import("numpy")
 mne <- import("mne")
 
@@ -34,7 +35,7 @@ mne <- import("mne")
 
 # importing the reshaped MEG decoding results
 raw_df <- read.csv(file = "code/decoding_results_reshaped.csv") %>%
-    # removing the last participant
+    # removing the last participant (to get a round number of participants)
     mutate(participant_id = cur_group_id(), .by = participant) %>%
     filter(participant_id < 33) %>%
     select(-participant_id)
@@ -81,28 +82,36 @@ full_sesoi <- summary_df %>%
     summarise(sesoi = sd(auc_mean) ) %>%
     pull(sesoi)
 
-# computing SD and max range of decoding performance during baseline
-# raw_df %>%
-#     filter(time < 0) %>%
-#     summarise(auc = mean(auc), .by = time) %>%
-#     summarise(auc_baseline_sd = sd(auc), max_baseline_range = max(abs(range(auc)-0.5) ) )
+# getting unique participants
+unique_participants <- unique(raw_df$participant)
 
-# defining a function to find onset and offset in timeseries
-find_onset_offset <- function (mask, timeseries) {
-    
-    # initialising onset and offset values
-    onset <- NA
-    offset <- NA
-    
-    # identifying the onset and offset
-    masked_timesteps <- try(timeseries[which(mask)], silent = TRUE)
-    onset <- head(x = masked_timesteps, n = 1)
-    offset <- tail(x = masked_timesteps, n = 1)
-    
-    # returning the onset and offset
-    return (c(onset, offset) )
-    
-}
+# getting the number of participants
+n_participants <- as.numeric(length(unique_participants) )
+
+# defining the number of splits
+n_splits <- 100
+
+# creating a dataframe where each participant appears in every split
+split_df <- crossing(participant = unique_participants, split_number = 1:n_splits)
+
+# assigning alternating groups (A or B) within each split for each participant
+split_df <- split_df %>%
+    group_by(split_number) %>%
+    # shuffling groups for each split
+    mutate(group = sample(rep(c("A", "B"), length.out = n() ) ) ) %>%
+    ungroup()
+
+# defining the decoding chance level
+chance_level <- 0.5
+
+# defining the threshold on the posterior probability ratio
+post_prob_ratio_threshold <- 20
+
+# defining the significance level
+alpha_level <- 0.05
+
+# initialising empty results
+reliability_results <- data.frame()
 
 # defining the function in R (it will be executed in Python)
 freq_stats_cluster_matrix <- function (
@@ -156,7 +165,8 @@ freq_stats_cluster_matrix <- function (
             # retrieving the current cluster
             cluster_mask <- clusters[[i]][[1]]
             idx_start <- cluster_mask$start+1
-            idx_stop <- cluster_mask$stop
+            # idx_stop <- cluster_mask$stop
+            idx_stop <- cluster_mask$stop+1
             
             # retrieving the p-value for this cluster
             pval <- p_values[[i]]
@@ -222,37 +232,6 @@ freq_stats_cluster_matrix <- function (
 #     
 # }
 
-# getting unique participants
-unique_participants <- unique(raw_df$participant)
-
-# getting the number of participants
-n_participants <- as.numeric(length(unique_participants) )
-
-# defining the number of splits
-n_splits <- 20
-
-# creating a dataframe where each participant appears in every split
-split_df <- crossing(participant = unique_participants, split_number = 1:n_splits)
-
-# assigning alternating groups (A or B) within each split for each participant
-split_df <- split_df %>%
-    group_by(split_number) %>%
-    # shuffling groups for each split
-    mutate(group = sample(rep(c("A", "B"), length.out = n() ) ) ) %>%
-    ungroup()
-
-# defining the decoding chance level
-chance_level <- 0.5
-
-# defining the threshold on the posterior probability ratio
-post_prob_ratio_threshold <- 20
-
-# defining the significance level
-alpha_level <- 0.05
-
-# initialising empty results
-reliability_results <- data.frame()
-
 # for each simulation
 for (i in seq(from = 1, to = n_splits, by = 1) ) {
     
@@ -292,19 +271,11 @@ for (i in seq(from = 1, to = n_splits, by = 1) ) {
     #     summarise(sesoi = max(abs(range(auc_mean) - chance_level) ) ) %>%
     #     pull(sesoi)
     
-    # fitting the Beta GAM
+    # fitting the GAM
     gam_split <- brm(
         # auc_mean | se(auc_sd) ~ s(time, bs = "cr", k = 50) + (1 | participant),
         # auc_mean | se(auc_sd) ~ s(time, bs = "tp", k = 50) + (1 | participant),
         # data = summary_df_split,
-        # family = gaussian(),
-        # auc ~ s(time, participant, bs = "fs", k = 50),
-        # data = raw_df_split,
-        # family = Beta(),
-        # multilevel GAM
-        # auc ~ s(time) + s(time, participant, bs = "fs", m = 1),
-        # family = Beta(),
-        # data = raw_df,
         # auc_mean | se(auc_sd) ~ s(time) + s(time, participant, bs = "fs", m = 1),
         # auc_mean ~ s(time, bs = "cr", k = 100),
         # auc_mean ~ s(time, bs = "tp", k = basis_dimension),
@@ -319,21 +290,23 @@ for (i in seq(from = 1, to = n_splits, by = 1) ) {
         iter = 5000,
         chains = 8,
         cores = 8
+        # backend = "cmdstanr",
+        # stan_model_args = list(stanc_options = list("O1") )
         )
     
     # fitting the multilevel GAM (much better PPCs, but very slow)...
     # gamm_split <- brm(
-    #     auc ~ s(time, bs = "cr", k = 50) + s(time, participant, bs = "fs", xt = "cr", k = 50, m = 1),
-    #     data = raw_df_split,
-    #     # auc_mean | se(auc_sd) ~ s(time, k = 50) + s(time, participant, bs = "fs", k = 50, m = 1),
-    #     # auc_mean ~ s(time, bs = "cr", k = 50) +
-    #     #     s(time, participant, bs = "fs", xt = "cr", k = 50, m = 1),
-    #     # data = summary_df_split,
+    #     # auc ~ s(time, bs = "cr", k = 20) +
+    #     #     s(time, participant, bs = "fs", xt = "cr", k = 20, m = 1),
+    #     # data = raw_df_split,
+    #     auc_mean | se(auc_sd) ~ s(time, bs = "cr", k = 30) +
+    #         s(time, participant, bs = "fs", xt = "cr", k = 30, m = 1),
+    #     data = summary_df_split,
+    #     family = Beta(),
     #     warmup = 2000,
     #     iter = 5000,
-    #     chains = 4,
-    #     cores = 4,
-    #     file = "models/gamm_split_raw_df.rds"
+    #     chains = 8,
+    #     cores = 8
     #     )
     
     # checking model's predictions against raw data
@@ -391,10 +364,10 @@ for (i in seq(from = 1, to = n_splits, by = 1) ) {
     # pp_check(gamm_split, type = "ecdf_overlay")
     
     # initialising dataframe to store brms results
-    temp_brms_results <- data.frame(
-        split_id = formatC(x = i, width = 3, flag = 0),
-        onset_brms = NA, offset_brms = NA
-        )
+    # temp_brms_results <- data.frame(
+    #     split_id = formatC(x = i, width = 3, flag = 0),
+    #     onset_brms = NA, offset_brms = NA
+    #     )
     
     # computing the posterior probability
     prob_y_above_0 <- data.frame(time = unique(gam_split$data$time) ) %>%
@@ -438,15 +411,13 @@ for (i in seq(from = 1, to = n_splits, by = 1) ) {
         ungroup()
     
     # sanity visual checks
-    # prob_y_above_0 %>%
-    #     ggplot(aes(x = time, y = m) ) +
-    #     geom_line()
     prob_y_above_0 %>%
         ggplot(aes(x = time, y = prob_ratio) ) +
         geom_hline(yintercept = 1, linetype = "dashed") +
         geom_hline(yintercept = 3, linetype = "dashed", color = "darkred") +
         geom_hline(yintercept = 1/3, linetype = "dashed", color = "darkred") +
         geom_hline(yintercept = 10, linetype = "dashed", color = "red") +
+        geom_hline(yintercept = post_prob_ratio_threshold, linetype = "dashed", color = "darkgreen") +
         geom_hline(yintercept = 1/10, linetype = "dashed", color = "red") +
         geom_hline(yintercept = 100, linetype = "dashed", color = "orangered") +
         geom_hline(yintercept = 1/100, linetype = "dashed", color = "orangered") +
@@ -465,31 +436,17 @@ for (i in seq(from = 1, to = n_splits, by = 1) ) {
         device = "png"
         )
     
-    # finding onset and offset for the current threshold
-    exceeding_times <- prob_y_above_0 %>%
-        dplyr::filter(prob_ratio > post_prob_ratio_threshold) %>%
-        summarise(
-            cluster_onset = min(time, na.rm = TRUE),
-            cluster_offset = max(time, na.rm = TRUE)
-            )
-    
-    exceeding_times_full <- prob_y_above_0 %>%
-        dplyr::filter(prob_ratio_full > post_prob_ratio_threshold) %>%
-        summarise(
-            cluster_onset = min(time, na.rm = TRUE),
-            cluster_offset = max(time, na.rm = TRUE)
-            )
-    
-    # storing the results in the dataframe
-    if (nrow(exceeding_times) > 0) {
-        
-        # filling onset+-/offset values
-        temp_brms_results$onset_brms <- exceeding_times$cluster_onset
-        temp_brms_results$offset_brms <- exceeding_times$cluster_offset
-        temp_brms_results$onset_brms_full <- exceeding_times_full$cluster_onset
-        temp_brms_results$offset_brms_full <- exceeding_times_full$cluster_offset
-        
-    }
+    # finding clusters with neurogam
+    onset_offset_brms <- neurogam::find_clusters(
+        data = prob_y_above_0 %>% select(time, value = prob_ratio),
+        threshold = post_prob_ratio_threshold
+        ) %>%
+        mutate(split_id = formatC(x = i, width = 3, flag = 0) ) %>%
+        select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+        mutate(method = "brms") %>%
+        pivot_longer(cols = onset:offset) %>%
+        select(split_id, method, cluster_id, onset_offset = name, value) %>%
+        data.frame()
     
     # converting data to a matrix (for later use in MNE functions)
     data_matrix <- matrix(
@@ -513,26 +470,63 @@ for (i in seq(from = 1, to = n_splits, by = 1) ) {
         ungroup()
         
     # using the binary segmentation method to identify onsets and offsets
+    # res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 10)
     res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 2)
-    onset_offset_cpt <- c(tests_results$time[res@cpts[1]], tests_results$time[res@cpts[2]])
+    onset_offset_cpt <- data.frame(
+        split_id = formatC(x = i, width = 3, flag = 0),
+        cluster_id = 1,
+        onset = tests_results$time[res@cpts[1]],
+        offset = tests_results$time[res@cpts[2]]
+        ) %>%
+        mutate(method = "cpt") %>%
+        pivot_longer(cols = onset:offset) %>%
+        select(split_id, method, cluster_id, onset_offset = name, value) %>%
+        data.frame()
     
-    # finding onsets
-    onset_offset_raw_p <- find_onset_offset(
-        tests_results$pval <= alpha_level,
-        tests_results$time
-        )
-    onset_offset_bh <- find_onset_offset(
-        tests_results$pval_bh <= alpha_level,
-        tests_results$time
-        )
-    onset_offset_by <- find_onset_offset(
-        tests_results$pval_by <= alpha_level,
-        tests_results$time
-        )
-    onset_offset_holm <- find_onset_offset(
-        tests_results$pval_holm <= alpha_level,
-        tests_results$time
-        )
+    # finding clusters
+    onset_offset_raw_p <- neurogam::find_clusters(
+        data = tests_results %>% mutate(pval = pval * (-1) ) %>% select(time, value = pval),
+        threshold = -alpha_level
+        ) %>%
+        mutate(split_id = formatC(x = i, width = 3, flag = 0) ) %>%
+        select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+        mutate(method = "raw_p") %>%
+        pivot_longer(cols = onset:offset) %>%
+        select(split_id, method, cluster_id, onset_offset = name, value) %>%
+        data.frame()
+    
+    onset_offset_pval_bh <- neurogam::find_clusters(
+        data = tests_results %>% mutate(pval = pval_bh * (-1) ) %>% select(time, value = pval),
+        threshold = -alpha_level
+        ) %>%
+        mutate(split_id = formatC(x = i, width = 3, flag = 0) ) %>%
+        select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+        mutate(method = "pval_bh") %>%
+        pivot_longer(cols = onset:offset) %>%
+        select(split_id, method, cluster_id, onset_offset = name, value) %>%
+        data.frame()
+    
+    onset_offset_pval_by <- neurogam::find_clusters(
+        data = tests_results %>% mutate(pval = pval_by * (-1) ) %>% select(time, value = pval),
+        threshold = -alpha_level
+        ) %>%
+        mutate(split_id = formatC(x = i, width = 3, flag = 0) ) %>%
+        select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+        mutate(method = "pval_by") %>%
+        pivot_longer(cols = onset:offset) %>%
+        select(split_id, method, cluster_id, onset_offset = name, value) %>%
+        data.frame()
+    
+    onset_offset_pval_holm <- neurogam::find_clusters(
+        data = tests_results %>% mutate(pval = pval_holm * (-1) ) %>% select(time, value = pval),
+        threshold = -alpha_level
+        ) %>%
+        mutate(split_id = formatC(x = i, width = 3, flag = 0) ) %>%
+        select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+        mutate(method = "pval_holm") %>%
+        pivot_longer(cols = onset:offset) %>%
+        select(split_id, method, cluster_id, onset_offset = name, value) %>%
+        data.frame()
     
     # running the MNE cluster-based permutation
     p_values_cluster_mass <- freq_stats_cluster_matrix(
@@ -548,27 +542,34 @@ for (i in seq(from = 1, to = n_splits, by = 1) ) {
         alpha_level = alpha_level
         )
     
-    # putting everything together
-    temp_reliability_results <- data.frame(
-        split_id = formatC(x = i, width = 3, flag = 0),
-        onset_p = onset_offset_raw_p[1],
-        offset_p = onset_offset_raw_p[2],
-        onset_bh = onset_offset_bh[1],
-        offset_bh = onset_offset_bh[2],
-        onset_by = onset_offset_by[1],
-        offset_by = onset_offset_by[2],
-        onset_holm = onset_offset_holm[1],
-        offset_holm = onset_offset_holm[2],
-        onset_cpt = onset_offset_cpt[1],
-        offset_cpt = onset_offset_cpt[2],
-        onset_cluster_mass = unique(p_values_cluster_mass$cluster_onset),
-        offset_cluster_mass = unique(p_values_cluster_mass$cluster_offset),
-        onset_cluster_tfce = unique(p_values_tfce$cluster_onset),
-        offset_cluster_tfce = unique(p_values_tfce$cluster_offset)
-        )
+    onset_offset_cluster_mass <- neurogam::find_clusters(
+        data = p_values_cluster_mass %>% mutate(pval = pval*(-1) ) %>% select(time, value = pval),
+        threshold = -alpha_level
+        ) %>%
+        mutate(split_id = formatC(x = i, width = 3, flag = 0) ) %>%
+        select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+        mutate(method = "cluster_mass") %>%
+        pivot_longer(cols = onset:offset) %>%
+        select(split_id, method, cluster_id, onset_offset = name, value) %>%
+        data.frame()
     
-    # bind these results with the brms results
-    temp_reliability_results <- left_join(temp_brms_results, temp_reliability_results, by = "split_id")
+    onset_offset_cluster_tfce <- neurogam::find_clusters(
+        data = p_values_tfce %>% mutate(pval = pval*(-1) ) %>% select(time, value = pval),
+        threshold = -alpha_level
+        ) %>%
+        mutate(split_id = formatC(x = i, width = 3, flag = 0) ) %>%
+        select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+        mutate(method = "cluster_tfce") %>%
+        pivot_longer(cols = onset:offset) %>%
+        select(split_id, method, cluster_id, onset_offset = name, value) %>%
+        data.frame()
+    
+    # binding all results together
+    temp_reliability_results <- bind_rows(
+        onset_offset_brms, onset_offset_raw_p, onset_offset_pval_bh,
+        onset_offset_pval_by, onset_offset_pval_holm, onset_offset_cpt,
+        onset_offset_cluster_mass, onset_offset_cluster_tfce
+        )
     
     # and appending it to previous splits results
     reliability_results <- bind_rows(reliability_results, temp_reliability_results)
@@ -586,12 +587,6 @@ full_gam <- brm(
     cores = 8
     )
 
-# initialising dataframe to store brms results
-temp_brms_results <- data.frame(
-    split_id = formatC(x = i+1, width = 3, flag = 0),
-    onset_brms = NA, offset_brms = NA
-    )
-
 # computing the posterior probability
 prob_y_above_0 <- data.frame(time = unique(full_gam$data$time) ) %>%
     # retrieving the posterior samples
@@ -607,24 +602,17 @@ prob_y_above_0 <- data.frame(time = unique(full_gam$data$time) ) %>%
     mutate(prob_ratio = ifelse(prob_ratio == 0, 1 / ndraws(full_gam), prob_ratio) ) %>%
     ungroup()
 
-# finding onset and offset for the current threshold
-exceeding_times <- prob_y_above_0 %>%
-    dplyr::filter(prob_ratio > post_prob_ratio_threshold) %>%
-    summarise(
-        cluster_onset = min(time, na.rm = TRUE),
-        cluster_offset = max(time, na.rm = TRUE)
-        )
-
-# storing the results in the dataframe
-if (nrow(exceeding_times) > 0) {
-    
-    # filling onset+-/offset values
-    temp_brms_results$onset_brms <- exceeding_times$cluster_onset
-    temp_brms_results$offset_brms <- exceeding_times$cluster_offset
-    temp_brms_results$onset_brms_full <- exceeding_times$cluster_onset
-    temp_brms_results$offset_brms_full <- exceeding_times$cluster_offset
-    
-}
+# finding clusters with neurogam
+onset_offset_brms <- neurogam::find_clusters(
+    data = prob_y_above_0 %>% select(time, value = prob_ratio),
+    threshold = post_prob_ratio_threshold
+    ) %>%
+    mutate(split_id = formatC(x = i+1, width = 3, flag = 0) ) %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "brms") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
 
 # converting data to a matrix (for later use in MNE functions)
 data_matrix <- matrix(
@@ -648,62 +636,112 @@ tests_results <- summary_df %>%
     ungroup()
 
 # using the binary segmentation method to identify onsets and offsets
+# res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 10)
+# res@cpts
+# tests_results$time[res@cpts]
+# onset_offset_cluster_tfce
+# res@cpttype
+# res@cpts.full
 res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 2)
-onset_offset_cpt <- c(tests_results$time[res@cpts[1]], tests_results$time[res@cpts[2]])
 
-# finding onsets
-onset_offset_raw_p <- find_onset_offset(
-    tests_results$pval <= alpha_level,
-    tests_results$time
-    )
-onset_offset_bh <- find_onset_offset(
-    tests_results$pval_bh <= alpha_level,
-    tests_results$time
-    )
-onset_offset_by <- find_onset_offset(
-    tests_results$pval_by <= alpha_level,
-    tests_results$time
-    )
-onset_offset_holm <- find_onset_offset(
-    tests_results$pval_holm <= alpha_level,
-    tests_results$time
-    )
+onset_offset_cpt <- data.frame(
+    split_id = formatC(x = i+1, width = 3, flag = 0),
+    cluster_id = 1,
+    onset = tests_results$time[res@cpts[1]],
+    offset = tests_results$time[res@cpts[2]]
+    ) %>%
+    mutate(method = "cpt") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
+
+# finding clusters
+onset_offset_raw_p <- neurogam::find_clusters(
+    data = tests_results %>% mutate(pval = pval * (-1) ) %>% select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = formatC(x = i+1, width = 3, flag = 0) ) %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "raw_p") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
+
+onset_offset_pval_bh <- neurogam::find_clusters(
+    data = tests_results %>% mutate(pval = pval_bh * (-1) ) %>% select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = formatC(x = i+1, width = 3, flag = 0) ) %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "pval_bh") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
+
+onset_offset_pval_by <- neurogam::find_clusters(
+    data = tests_results %>% mutate(pval = pval_by * (-1) ) %>% select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = formatC(x = i+1, width = 3, flag = 0) ) %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "pval_by") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
+
+onset_offset_pval_holm <- neurogam::find_clusters(
+    data = tests_results %>% mutate(pval = pval_holm * (-1) ) %>% select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = formatC(x = i+1, width = 3, flag = 0) ) %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "pval_holm") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
 
 # running the MNE cluster-based permutation
 p_values_cluster_mass <- freq_stats_cluster_matrix(
     X = data_matrix - chance_level,
-    timesteps = unique(summary_df$time),
+    timesteps = unique(summary_df_split$time),
     cluster_type = "mass",
     alpha_level = alpha_level
     )
 p_values_tfce <- freq_stats_cluster_matrix(
     X = data_matrix - chance_level,
-    timesteps = unique(summary_df$time),
+    timesteps = unique(summary_df_split$time),
     cluster_type = "tfce",
     alpha_level = alpha_level
     )
 
-# putting everything together
-temp_reliability_results <- data.frame(
-    split_id = formatC(x = i+1, width = 3, flag = 0),
-    onset_p = onset_offset_raw_p[1],
-    offset_p = onset_offset_raw_p[2],
-    onset_bh = onset_offset_bh[1],
-    offset_bh = onset_offset_bh[2],
-    onset_by = onset_offset_by[1],
-    offset_by = onset_offset_by[2],
-    onset_holm = onset_offset_holm[1],
-    offset_holm = onset_offset_holm[2],
-    onset_cpt = onset_offset_cpt[1],
-    offset_cpt = onset_offset_cpt[2],
-    onset_cluster_mass = unique(p_values_cluster_mass$cluster_onset),
-    offset_cluster_mass = unique(p_values_cluster_mass$cluster_offset),
-    onset_cluster_tfce = unique(p_values_tfce$cluster_onset),
-    offset_cluster_tfce = unique(p_values_tfce$cluster_offset)
-    )
+onset_offset_cluster_mass <- neurogam::find_clusters(
+    data = p_values_cluster_mass %>% mutate(pval = pval*(-1) ) %>% select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = formatC(x = i+1, width = 3, flag = 0) ) %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "cluster_mass") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
 
-# bind these results with the brms results
-temp_reliability_results <- left_join(temp_brms_results, temp_reliability_results, by = "split_id")
+onset_offset_cluster_tfce <- neurogam::find_clusters(
+    data = p_values_tfce %>% mutate(pval = pval*(-1) ) %>% select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = formatC(x = i+1, width = 3, flag = 0) ) %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "cluster_tfce") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
+
+# binding all results together
+temp_reliability_results <- bind_rows(
+    onset_offset_brms, onset_offset_raw_p, onset_offset_pval_bh,
+    onset_offset_pval_by, onset_offset_pval_holm, onset_offset_cpt,
+    onset_offset_cluster_mass, onset_offset_cluster_tfce
+    )
 
 # and appending it to previous splits results
 reliability_results <- bind_rows(reliability_results, temp_reliability_results)

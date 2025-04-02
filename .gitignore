@@ -1,0 +1,10 @@
+.DS_Store
+.RData
+.Rhistory
+.Rproj.user/
+.gitignoreresults/*.rds
+brms_meeg_cache/
+brms_meeg_cache/pdf/
+brms_meeg_cache/**/*
+results/
+models/

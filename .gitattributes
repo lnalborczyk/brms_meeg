@@ -1,2 +1,4 @@
 *.rds filter=lfs diff=lfs merge=lfs -text
 models/*.rds filter=lfs diff=lfs merge=lfs -text
+results/*.rds filter=lfs diff=lfs merge=lfs -text
+brms_meeg_cache/pdf/*.rdb filter=lfs diff=lfs merge=lfs -text
