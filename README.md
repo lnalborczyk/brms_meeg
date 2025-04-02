@@ -8,12 +8,10 @@ Time-resolved electrophysiological measurements such as those obtained through m
 
 The figure below shows a summary of the simulation results, revealing that the proposed approach (`brms`) has the lowest MAE and variance for both the onset and offset estimates.
 
-<!-- ![Simulation results](figures/simulation_results_mae_variance.png) -->
-![MEG data](brms_meeg_files/figure-pdf/fig-simulation-mae-variance-1.pdf)
+![MEG data](brms_meeg_files/figure-pdf/fig-simulation-mae-variance-1.png)
 
 ## Application to actual MEG data (time-resolved decoding)
 
 The figure below shows the group-level average decoding performance through time with onset and offset estimates for each method. The `brms_full` method is similar to the `brms` method except that the ROPE is defined on the entire dataset rather than on the split dataset. Overall, this figure shows that both the `Raw p-value` and `FDR BH95` methods were extremely lenient, considering that the decoding performance was above chance before the onset of the stimulus (false positive) and until the end of the trial. The `Change point` and `Cluster mass` methods were the most conservative methods, identifying a time window from approximately +60ms to +500ms. The `Holm`, `TFCE`, `brms`, and `brms_full` methods produced somewhat similar estimates of onset and offset, from approximately +60ms to +650ms.
 
-<!-- ![MEG data](figures/meg_decoding_results_all_methods.png) -->
-![MEG data](brms_meeg_files/figure-pdf/fig-sim-timegen-1.pdf)
+![MEG data](brms_meeg_files/figure-pdf/fig-sim-timegen-1.png)
