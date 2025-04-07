@@ -6,12 +6,12 @@ Time-resolved electrophysiological measurements such as those obtained through m
 
 ## Main simulation results
 
-The figure below shows a summary of the simulation results, revealing that the proposed approach (`brms`) has the lowest MAE and variance for both the onset and offset estimates.
+The figure below shows a summary of the simulation results, revealing that the proposed approach (`BGAM`) has the lowest median error and variance for both the onset and offset estimates.
 
-![MEG data](brms_meeg_files/figure-pdf/fig-simulation-mae-variance-1.png)
+![MEG data](figures/simulation_results_median_error_variance.png)
 
 ## Application to actual MEG data (time-resolved decoding)
 
-The figure below shows the group-level average decoding performance through time with onset and offset estimates for each method. The `brms_full` method is similar to the `brms` method except that the ROPE is defined on the entire dataset rather than on the split dataset. Overall, this figure shows that both the `Raw p-value` and `FDR BH95` methods were extremely lenient, considering that the decoding performance was above chance before the onset of the stimulus (false positive) and until the end of the trial. The `Change point` and `Cluster mass` methods were the most conservative methods, identifying a time window from approximately +60ms to +500ms. The `Holm`, `TFCE`, `brms`, and `brms_full` methods produced somewhat similar estimates of onset and offset, from approximately +60ms to +650ms.
+The figure below shows the group-level average decoding performance through time with onset and offset estimates for each method. Overall, this figure shows that the `Raw p-value` method is extremely lenient, considering that decoding performance is above chance before the onset of the stimulus (false positive) and until the end of the trial. The `Change point`, `TFCE`, and `Holm` methods are the most conservative methods, identifying a time window from approximately +60ms to +550ms. The `FDR BH95`, `FDR BY01`, `Cluster mass`, and `BGAM` methods produced somewhat similar estimates of onset and offset, from approximately +60ms to +650ms.
 
-![MEG data](brms_meeg_files/figure-pdf/fig-onset-offset-1.png)
+![MEG data](figures/meg_decoding_results_all_methods.png)

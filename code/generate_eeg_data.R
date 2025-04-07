@@ -5,7 +5,7 @@ source("code/eeg_noise.R")
 source("code/erp_template.R")
 
 # importing helper functions
-source("code/functions.R")
+# source("code/functions.R")
 
 # to use with the eeg_noise function
 meanpower <- unlist(read.table("code/meanpower.txt") )

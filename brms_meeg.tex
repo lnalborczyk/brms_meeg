@@ -380,9 +380,9 @@ electroencephalography (EEG) are two such methods, widely used in
 cognitive neuroscience for their ability to track brain activity at the
 millisecond scale. These techniques provide rich time series data that
 reflect how neural responses unfold in response to stimuli or tasks. A
-central goal in many M/EEG studies is to determine whether---and
-when---neural responses differ across experimental conditions or
-participant groups.
+central goal in many M/EEG studies is to determine whether and when
+neural responses differ across experimental conditions or participant
+groups.
 
 Here are some useful references to be discussed
 (\citeproc{ref-combrisson_exceeding_2015}{Combrisson \& Jerbi, 2015};
@@ -392,7 +392,6 @@ Here are some useful references to be discussed
 2013}; \citeproc{ref-hayasaka_validating_2003}{Hayasaka, 2003};
 \citeproc{ref-luck_how_2017}{Luck \& Gaspelin, 2017};
 \citeproc{ref-maris2007}{Maris \& Oostenveld, 2007};
-\citeproc{ref-pedersen_hierarchical_2019}{E. J. Pedersen et al., 2019};
 \citeproc{ref-pernet2015}{Pernet et al., 2015})\ldots{} See also Maris
 (\citeproc{ref-maris2011}{2011}) and Rosenblatt et al.
 (\citeproc{ref-rosenblatt2018}{2018}) (history of cluster-based
@@ -418,7 +417,7 @@ effects being above chance at the level of timesteps, voxels, sensors
 (etc), while naturally taking into account spatiotemporal dependencies
 present in M/EEG timeseries.
 
-\subsection{Previous work}\label{previous-work}
+\subsection{Related work}\label{related-work}
 
 Recent example of GLM for EEG (\citeproc{ref-fischer2013}{Fischer \&
 Ullsperger, 2013}; \citeproc{ref-wuxfcllhorst2025}{Wüllhorst et al.,
@@ -495,8 +494,8 @@ of a known parametric model matrix, \(\gamma\) is a vector of parameters
 for the parametric terms (to be estimated), \(f_{j}\) is a smooth
 function of covariate \(x_{j}\) (to be estimated as well). The smooth
 functions \(f_{j}\) are represented in the model via penalised splines
-basis expansions of the covariates, that are a weighted sum of basis
-functions:
+basis expansions of the covariates, that are a weighted sum of \(K\)
+simpler, basis functions:
 
 \[
 f_{j}\left(x_{i j}\right) = \sum_{k=1}^K \beta_{jk} b_{jk}\left(x_{ij}\right)
@@ -504,19 +503,23 @@ f_{j}\left(x_{i j}\right) = \sum_{k=1}^K \beta_{jk} b_{jk}\left(x_{ij}\right)
 
 where \(\beta_{jk}\) is the weight (coefficient) associated with the
 \(k\)th basis function \(b_{jk}()\) evaluated at the covariate value
-\(x_{ij}\) for the \(j\)th smooth function \(f_{j}\). Splines
-coefficients are penalised (usually through the squared of the smooth
-functions' second derivative) in a way that can be interpreted, in
-Bayesian terms, as a prior on the ``wiggliness'' of the function. In
-other words, more complex (wiggly) basis function are penalised. To
-clarify the terminology at this stage: \emph{splines} are functions
-composed of simpler functions. These simpler functions are basis
-functions (e.g., a cubic polynomial) and the set of basis functions is a
-\emph{basis}. Each basis function gets its coefficient and the resultant
-spline is the sum of these weighted basis functions.
+\(x_{ij}\) for the \(j\)th smooth function \(f_{j}\). To clarify the
+terminology at this stage: \emph{splines} are functions composed of
+simpler functions. These simpler functions are basis functions (e.g., a
+cubic polynomial) and the set of basis functions is a \emph{basis}. Each
+basis function gets its coefficient and the resultant spline is the sum
+of these weighted basis functions. Splines coefficients are penalised
+(usually through the squared of the smooth functions' second derivative)
+in a way that can be interpreted, in Bayesian terms, as a prior on the
+``wiggliness'' of the function. In other words, more complex (wiggly)
+basis function are penalised.
 
 \subsection{Bayesian generalised additive multilevel
 models}\label{bayesian-generalised-additive-multilevel-models}
+
+Introduction to multilevel GAMs
+(\citeproc{ref-pedersen_hierarchical_2019}{E. J. Pedersen et al.,
+2019})\ldots{}
 
 Now describe the Bayesian GAMM (\citeproc{ref-miller2025}{Miller,
 2025})\ldots{} Proper inclusion of varying/random effects in the model
@@ -533,10 +536,14 @@ GAM\ldots{} less susceptible to outliers
 
 \subsection{Objectives}\label{objectives}
 
-Focusing on identifying onset and offset of effects (as assessed by ERP
-differences or decoding performance)\ldots{} Assessing the performance
-of a model-based approach (i.e., Bayesian GAMMs) to conventional methods
-(multiplicity corrections or cluster-based permutation)\ldots{}
+Given the previously reported limitations of conventional methods to
+precisely identify the onset and offset of M/EEG effects (e.g., ERPs,
+decoding performance), we aimed to provide a model-based approach for
+estimating the onset and offset of such effects. To achieve this, we
+leveraged Bayesian generalised additive multilevel models (BGAMMs)
+fitted via the \texttt{brms\ R} package and compared the performance of
+this approach to conventional methods on both simulated and actual M/EEG
+data.
 
 \section{Methods}\label{methods}
 
@@ -548,41 +555,24 @@ Following the approach of Sassenhagen \& Draschkow
 stemming from two conditions, one with noise only, and the other with
 noise + signal. As in previous studies, the noise was generated by
 superimposing 50 sinusoids at different frequencies, following an
-EEG-like spectrum (see details and code in
-\citeproc{ref-yeung2004}{Yeung et al., 2004}). As in Rousselet
-(\citeproc{ref-rousselet_using_2025}{2025}), the signal was generated
-from truncated Gaussian with an objective onset at 160 ms, a peak at 250
-ms, and an offset at 342 ms. We simulated this signal for 250 timesteps
-between 0 and 0.5s, akin to a 500 Hz sampling rate. We simulated such
-data for a group of 20 participants with 50 trials per participant and
-condition (Figure~\ref{fig-eeg}).
+EEG-like spectrum (see code in the online supplementary materials and
+details in \citeproc{ref-yeung2004}{Yeung et al., 2004}). As in
+Rousselet (\citeproc{ref-rousselet_using_2025}{2025}), the signal was
+generated from truncated Gaussian with an objective onset at 160 ms, a
+peak at 250 ms, and an offset at 342 ms. We simulated this signal for
+250 timesteps between 0 and 0.5s, akin to a 500 Hz sampling rate. We
+simulated data for a group of 20 participants with 50 trials per
+participant and condition (Figure~\ref{fig-eeg}).
 
 \begin{figure}[!htb]
 
-\caption{\label{fig-eeg}Averaged (mean) simulated EEG activity in two
-conditions with 50 trials each, for a group of 20 participants. The
-error band represents the mean plus/minus 1 standard error of the mean.}
+\caption{\label{fig-eeg}Mean simulated EEG activity in two conditions
+with 50 trials each, for a group of 20 participants. The error band
+represents the mean +/- 1 standard error of the mean.}
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-eeg-1.pdf}
-
-}
-
-\end{figure}%
-
-We computed the average of the ERP difference
-(Figure~\ref{fig-erp})\ldots{}
-
-\begin{figure}[!htb]
-
-\caption{\label{fig-erp}Group-level average difference between
-conditions (mean +/- standard error of the mean). The `true' onset and
-offset are indicated by the vertical dashed lines.}
-
-\centering{
-
-\includegraphics[width=0.75\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-erp-1.pdf}
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-eeg-1.png}
 
 }
 
@@ -599,10 +589,12 @@ distribution, including each 5000 iterations and a warmup of 2000
 iterations, yielding a total of \(8 \times (5000-2000) = 24000\)
 posterior samples to use for inference. Posterior convergence was
 assessed examining trace plots as well as the Gelman--Rubin statistic
-\(\hat{R}\). The \texttt{brms} package uses the same syntax as the
-\texttt{R} package \texttt{mgcv} v 1.9-1 (\citeproc{ref-mgcv}{Wood,
-2017b}) for specifying smooth effects. Figure~\ref{fig-plot-post-slope}
-shows the predictions of this model together with the raw data.
+\(\hat{R}\) (\citeproc{ref-gabry2019}{Gabry et al., 2019};
+\citeproc{ref-gelman2020}{Gelman et al., 2020}). The \texttt{brms}
+package uses the same syntax as the \texttt{R} package \texttt{mgcv} v
+1.9-1 (\citeproc{ref-mgcv}{Wood, 2017b}) for specifying smooth effects.
+Figure~\ref{fig-plot-post-slope} shows the predictions of this model
+together with the raw data.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -648,46 +640,44 @@ shows the predictions of this model together with the raw data.
 \end{Highlighting}
 \end{Shaded}
 
-\subsection{Posterior probability of difference above
-0}\label{posterior-probability-of-difference-above-0}
-
-We then plot the posterior predictions together with the posterior
-estimate of the slope for \texttt{condition} at each timestep
+We depict the posterior predictions together with the posterior estimate
+of the slope for \texttt{condition} at each timestep
 (Figure~\ref{fig-plot-post-slope}).
 
 \begin{figure}[!htb]
 
-\caption{\label{fig-plot-post-slope}Posterior estimate of the ERP in
-each condition (left) or directly for the difference of ERPs (right)
-according to the GAM.}
+\caption{\label{fig-plot-post-slope}Posterior estimate of the EEG
+activity in each condition (left) and posterior estimate of the
+difference in EEG activity (right) according to the GAM.}
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-plot-post-slope-1.pdf}
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-plot-post-slope-1.png}
 
 }
 
 \end{figure}%
 
 We then compute the posterior probability of the slope for
-\texttt{condition} being above \(0+\epsilon\)
-(Figure~\ref{fig-post-prob-ratio}, left), with \(\epsilon := 0.05\),
-which can be interpreted as the smallest effect size of interest. We can
-also express this as the ratio of posterior probabilities (i.e.,
-\(p/(1-p)\)) and visualise the timecourse of this ratio superimposed
-with the conventional thresholds on evidence ratios
-(Figure~\ref{fig-post-prob-ratio}, right).
+\texttt{condition} being above \(0\) (Figure~\ref{fig-post-prob-ratio},
+left). We can also express this as the ratio of posterior probabilities
+(i.e., \(p/(1-p)\)) and visualise the timecourse of this ratio
+superimposed with the conventional thresholds on evidence ratios
+(Figure~\ref{fig-post-prob-ratio}, right). A ratio of 10 means that the
+probability of the difference being above 0 is 10 times higher than the
+probability of the difference not being above 0, given the data, the
+priors, and other model's assumptions.
 
 \begin{figure}[!htb]
 
 \caption{\label{fig-post-prob-ratio}Left: Posterior probability of the
-ERP difference (slope) being above 0 according to the GAM. Right: Ratio
+EEG difference (slope) being above 0 according to the GAM. Right: Ratio
 of posterior probability according to the GAM (on a log10 scale).
 Timesteps above threshold (10) are highlighted in green.}
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-post-prob-ratio-1.pdf}
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-post-prob-ratio-1.png}
 
 }
 
@@ -695,14 +685,15 @@ Timesteps above threshold (10) are highlighted in green.}
 
 \newpage
 
-\subsection{Multilevel modelling using ERP summary
-statistics}\label{multilevel-modelling-using-erp-summary-statistics}
+\subsection{Multilevel modelling using summary
+statistics}\label{multilevel-modelling-using-summary-statistics}
 
-Next we fit a multilevel version of the GAM. Although it is possible to
-fit a GAMM at the single-trial level, we present a resource-efficient
-version of the model that is fitted directly on the by-participant
-summary statistics (mean and SD, similar to what is done in
-meta-analysis\ldots{}
+The previous model only included constant (fixed) effects, thus not
+properly accounting for between-participant variability. We next fit a
+multilevel version of the GAM. Although it is possible to fit a GAMM at
+the single-trial level, we present a resource-efficient version of the
+model that is fitted directly on the by-participant summary statistics
+(mean and SD), similar to what is done in meta-analysis.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -737,27 +728,26 @@ meta-analysis\ldots{}
 \subsection{Error properties of the proposed
 approach}\label{error-properties-of-the-proposed-approach}
 
-We then computed the difference between the true and estimated
-onset/offset of the ERP difference
-(\(\text{error}:=|\hat{\theta}-\theta|\)), according to various
-\texttt{k} (GAM basis dimension) and \texttt{threshold} values. Remember
-that the signal is generated from a truncated Gaussian with an objective
-onset at 160 ms, a maximum at 250 ms, and an offset at 342 ms.
-Figure~\ref{fig-onset-error} shows that the hierarchical GAM can
-\emph{exactly} recover the true onset and offset values, given some
-reasonable choice of \texttt{k} and \texttt{threshold} values (e.g., a
-threshold of 20). We provide more detailed recommendations on how to set
-\texttt{k} in Section~\ref{sec-basis}.
+We then compute the difference between the true and estimated
+onset/offset of the EEG difference according to various \texttt{k} (GAM
+basis dimension) and \texttt{threshold} values. Remember that the EEG
+signal was generated from a truncated Gaussian with an objective onset
+at 160 ms, a maximum at 250 ms, and an offset at 342 ms.
+Figure~\ref{fig-onset-error} shows that the multilevel GAM can
+\emph{almost exactly} recover the true onset and offset values, given
+some reasonable choice of \texttt{k} and \texttt{threshold} values
+(e.g., a threshold of 20). We provide more detailed recommendations on
+how to set \texttt{k} in Section~\ref{sec-basis}.
 
 \begin{figure}[!htb]
 
-\caption{\label{fig-onset-error}Error function of onset (left) and
-offset (right) estimation according to various basis dimension and
+\caption{\label{fig-onset-error}Average estimation error for the onset
+(left) and offset (right) according to various basis dimension and
 threshold values (according to the multilevel GAM).}
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-onset-error-1.pdf}
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-onset-error-1.png}
 
 }
 
@@ -768,23 +758,22 @@ threshold values (according to the multilevel GAM).}
 \subsection{Comparing the identified onsets/offsets to other
 approaches}\label{comparing-the-identified-onsetsoffsets-to-other-approaches}
 
-To provide a more exhaustive assessment of the performance of the
-proposed approach, we compared the ability of the GAMM to correctly
-estimate the onset and offset of the ERP difference to widely-used
-methods. First, we conducted mass-univariate t-tests (thus treating each
-timestep independently) and identified the onset and offset of the ERP
-difference as the first and last values crossing an arbitrary
-significance threshold (\(\alpha = 0.05\)). We then followed the same
-approach but after applying different forms of multiplicity correction
-to the p-values. We compared two methods that control the false
-discovery rate (FDR) (i.e., BH95, \citeproc{ref-benjamini1995}{Benjamini
-\& Hochberg, 1995}; and BY01, \citeproc{ref-benjamini2001}{Benjamini \&
-Yekutieli, 2001}), one method that controls the family-wise error rate
-(FWER) (i.e., Holm--Bonferroni method, \citeproc{ref-holm1979}{Holm,
-1979}), and two cluster-based permutation methods (permutation with a
-single cluster-forming threshold and threshold-free cluster enhancement,
-TFCE, \citeproc{ref-smith2009}{S. Smith \& Nichols, 2009}). The BH95,
-BY01, and Holm corrections were applied to the p-values using the
+We then compared the ability of the GAMM to correctly estimate the onset
+and offset of the ERP difference to other widely-used methods. First, we
+conducted mass-univariate t-tests (thus treating each timestep
+independently) and identified the onset and offset of the ERP difference
+as the first and last values crossing an arbitrary significance
+threshold (\(\alpha = 0.05\)). We then followed the same approach but
+after applying different forms of multiplicity correction to the
+p-values. We compared two methods that control the false discovery rate
+(FDR) (i.e., BH95, \citeproc{ref-benjamini1995}{Benjamini \& Hochberg,
+1995}; and BY01, \citeproc{ref-benjamini2001}{Benjamini \& Yekutieli,
+2001}), one method that controls the family-wise error rate (FWER)
+(i.e., Holm--Bonferroni method, \citeproc{ref-holm1979}{Holm, 1979}),
+and two cluster-based permutation methods (permutation with a single
+cluster-forming threshold and threshold-free cluster enhancement, TFCE,
+\citeproc{ref-smith2009}{S. Smith \& Nichols, 2009}). The BH95, BY01,
+and Holm corrections were applied to the p-values using the
 \texttt{p.adjust()} function in \texttt{R}. The cluster-based inference
 was implemented using a cluster-sum statistic of squared t-values, as
 implemented in \texttt{MNE-Python}
@@ -793,8 +782,8 @@ package \texttt{reticulate} v 1.42.0 (\citeproc{ref-reticulate}{Ushey et
 al., 2024}). We also compared these estimates to the onset and offset as
 estimated using the binary segmentation algorithm, as implemented in the
 \texttt{R} package \texttt{changepoint} v 2.3
-(\citeproc{ref-changepoint}{Killick et al., 2022a}), and applied
-directly to the squared t-values (as in
+(\citeproc{ref-changepoint}{Killick et al., 2022}), and applied directly
+to the squared t-values (as in
 \citeproc{ref-rousselet_using_2025}{Rousselet, 2025}).
 Figure~\ref{fig-corrections} illustrates the onsets and offsets
 estimated by each method on a single simulated dataset and shows that
@@ -811,7 +800,7 @@ using the binary segmentation method (Change point).}
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-corrections-1.pdf}
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-corrections-1.png}
 
 }
 
@@ -821,32 +810,36 @@ using the binary segmentation method (Change point).}
 
 \subsection{Simulation study}\label{simulation-study}
 
-The various methods were assessed using the median error and variance of
-onset/offset estimates computed on 10.000 simulated datasets\ldots{}
+The various methods were compared using the median error (i.e.,
+true-estimated) and variance of onset/offset estimates computed on
+10.000 simulated datasets.
 
 \subsection{Application to actual MEG
 data}\label{application-to-actual-meg-data}
 
-Next, we assessed the performance of the proposed approach on actual MEG
-data (decoding results from \citeproc{ref-nalborczyk:inprep}{Nalborczyk
-et al., in preparation}). We conducted time-resolved multivariate
-pattern analysis (MVPA), also known as decoding\ldots{} As a result, we
-have a timecourse of decoding performance (ROC AUC), bounded between 0
-and 1, for each participant (for a total of 32 participants). Now, we
-want to \emph{test} whether the group-level average decoding accuracy is
-above chance (i.e., 0.5) at each timestep
-(Figure~\ref{fig-decoding-data}). We fitted a similar GAM as discussed
-previously, but we replaced the \(\mathrm{Normal}\) likelihood function
-by a \(\mathrm{Beta}\) one to account for the bounded nature of AUC
-values (between 0 and 1) (for a tutorial on Beta regression, see
-\citeproc{ref-coretta2025}{Coretta \& Bürkner, 2025}). Note that
-although we chose a basis dimension of \(k=50\), which seems appropriate
-for the present data, this choice should be adapted according to the
-properties of the modelled data (e.g., signal-to-noise ratio, prior
-low-pass filtering, sampling rate, etc) and should be assessed by the
-usual model checking tools (e.g., posterior predictive checks, see also
-Section~\ref{sec-basis}). To distinguish signal from noise, we also
-defined a region of practical equivalence (ROPE,
+To provide a more exhaustive assessment of these methods, we also
+evaluated the performance of the proposed approach on actual MEG data
+(decoding results from \citeproc{ref-nalborczyk:inprep}{Nalborczyk et
+al., in preparation}). In this study, we conducted time-resolved
+multivariate pattern analysis (MVPA, also known as decoding) of MEG data
+during reading tasks. As a result, we obtain a timecourse of decoding
+performance (ROC AUC), bounded between 0 and 1, for each participant
+(for a total of 32 participants). Next, we want to \emph{test} whether
+the group-level average decoding accuracy is above chance (i.e., 0.5) at
+each timestep (Figure~\ref{fig-decoding-data}). To achieve this, we
+fitted a similar GAM as discussed previously, but we replaced the
+\(\mathrm{Normal}\) likelihood function by a \(\mathrm{Beta}\) one to
+account for the bounded nature of AUC values (between 0 and 1) (for a
+tutorial on Beta regression, see \citeproc{ref-coretta2025}{Coretta \&
+Bürkner, 2025}).
+
+Note that although we chose a basis dimension of \(k=50\), which seems
+appropriate for the present data, this choice should be adapted
+according to the properties of the modelled data (e.g., signal-to-noise
+ratio, prior low-pass filtering, sampling rate, etc) and should be
+assessed by the usual model checking tools (e.g., posterior predictive
+checks, see also Section~\ref{sec-basis}). To better distinguish signal
+from noise, we also defined a region of practical equivalence (ROPE,
 \citeproc{ref-kruschke2017}{Kruschke \& Liddell, 2017}), defined as the
 chance level plus the standard deviation of the (group-level average)
 decoding performance during the baseline period.
@@ -875,7 +868,10 @@ participants). For each split, we estimated the onset/offset using all
 methods described previously. Third, we summarised the distribution of
 onset/offset estimates using the median ``error'' (i.e., difference
 between the split estimate and the estimate obtained using the full
-dataset) and the variance across splits.
+dataset) and the variance across splits. This approach allows assessing
+how similar the estimate of each half split is to the full dataset (thus
+acting as a proxy for the population) and how variable the estimates are
+(across split halves).
 
 \begin{figure}[!htb]
 
@@ -887,7 +883,7 @@ which the posterior probability ratio exceeds 20.}
 
 \centering{
 
-\includegraphics[width=0.75\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-decoding-data-1.pdf}
+\includegraphics[width=0.75\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-decoding-data-1.png}
 
 }
 
@@ -904,23 +900,29 @@ Second, we present the results obtained when applying the different
 methods to actual MEG data (decoding performance through time),
 assessing the reliability of the estimates provided by each method.
 
-\subsection{Simulation results (bias and
-variance)}\label{simulation-results-bias-and-variance}
+\subsection{Simulation study (bias and
+variance)}\label{simulation-study-bias-and-variance}
 
-Figure~\ref{fig-simulation-mae-variance} shows a summary of the
-simulation results, revealing that the proposed approach (\texttt{BGAM})
-has the lowest median error and variance for both the onset and offset
-estimates.
+Figure~\ref{fig-simulation-results} shows a summary of the simulation
+results, revealing that the proposed approach (\texttt{BGAM}) has the
+lowest median error and variance for both the onset and offset
+estimates. The \texttt{Cluster-mass}, \texttt{Holm}, and
+\texttt{Change\ point} also have good performance, but surprisingly, the
+\texttt{TFCE} method has relatively bad performance for estimating the
+effect offset. Unsurprisingly, the \texttt{Raw\ p-value},
+\texttt{FDR\ BH95}, and \texttt{FDR\ BY01} methods show the worst
+performance.
 
 \begin{figure}[!htb]
 
-\caption{\label{fig-simulation-mae-variance}Median error and variance of
-onset and offset estimates for each method. Variance is plotted on a
-log10 scale for visual purposes.}
+\caption{\label{fig-simulation-results}Median error and variance of
+onset and offset estimates for each method. The vertical dashed line
+represents an unbiased estimate of the true onset/ofsset. Variance is
+plotted on a log10 scale for visual purposes.}
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-simulation-mae-variance-1.pdf}
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-simulation-results-1.png}
 
 }
 
@@ -934,17 +936,18 @@ log10 scale for visual purposes.}
 Figure~\ref{fig-onset-offset} shows the group-level average decoding
 performance through time with onset and offset estimates for each
 method. Overall, this figure shows that both the \texttt{Raw\ p-value}
-and \texttt{FDR\ BH95} methods were extremely lenient, considering that
-the decoding performance was above chance before the onset of the
+and \texttt{FDR\ BH95} methods are extremely lenient, considering that
+the decoding performance is above chance before the onset of the
 stimulus (false positive) and until the end of the trial. The
-\texttt{Change\ point} and \texttt{Cluster\ mass} methods were the most
+\texttt{Change\ point} and \texttt{Cluster\ mass} methods seem the most
 conservative methods, identifying a time window from approximately +60ms
 to +500ms. The \texttt{Holm}, \texttt{TFCE}, and \texttt{BGAM} methods
-produced similar estimates of onset and offset, ranging from
-approximately +60ms to +650ms.\footnote{It should be noted that although
+produce similar estimates of onset and offset, ranging from
+approximately +60ms to +650ms, although the \texttt{BGAM} method seems
+to result in fewer clusters.\footnote{It should be noted that although
   each method can produce several ``clusters'' of ``significant''
   timesteps, we only considered the first (onset) and last (offset)
-  timesteps identified by each method to compute the error (difference).}
+  timesteps identified by each method to compute the estimation error.}
 
 \begin{figure}[!htb]
 
@@ -955,7 +958,7 @@ preparation}).}
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-onset-offset-1.pdf}
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-onset-offset-1.png}
 
 }
 
@@ -975,22 +978,28 @@ data splits and the full dataset is not convincing on its own. The
 \texttt{Change\ point} method also has a very good performance (i.e.,
 very low difference between split estimates and full estimates), but
 produces too short cluster of significant decoding performance (cf.
-Figure~\ref{fig-onset-offset}). Overall, the figure reveals that for all
-other methods, split datasets produce later onset estimates and earlier
-offset estimates (as compared to the estimates from the model fitted on
-the full dataset). These results highlight that the results of any
-method should be assessed using both i) good asymptotic properties on
-simulated data, ii) sensible identified clusters in actual data, and
+Figure~\ref{fig-onset-offset}).\footnote{As in Rousselet
+  (\citeproc{ref-rousselet_using_2025}{2025}), we fixed the number of
+  expected change points to two in the binary segmentation algorithm,
+  thus producing always one cluster.} Overall, the figure reveals that
+for all other methods, split datasets produce later onset estimates and
+earlier offset estimates (as compared to the estimates from the model
+fitted on the full dataset). These results highlight that the results of
+any method should be assessed using both i) good asymptotic properties
+on simulated data, ii) sensible identified clusters in actual data, and
 iii) reliable/stable estimates on actual data.
 
 \begin{figure}[!htb]
 
-\caption{\label{fig-reliability}Median absolute error and variance of
-onset (left) and offset (right) estimates for each method.}
+\caption{\label{fig-reliability}Median error and median absolute
+deviation of the error for the onset (left) and offset (right) estimates
+according to each method. Methods are ordered from lowest (top) to
+highest (bottom) median absolute error (separately for the onset and
+offset estimates).}
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-reliability-1.pdf}
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-reliability-1.png}
 
 }
 
@@ -1007,13 +1016,6 @@ Overall, before concluding on the onset/offset of effect based on the
 model, we need to ensure that the model provides a faithful description
 of the data-generating process (e.g., via posterior predictive checks
 etc)\ldots{}
-
-\subsection{Increasing potential
-usage}\label{increasing-potential-usage}
-
-Prepare a wrapper \texttt{R} package and show how to call it in
-\texttt{Python} and integrate it with \texttt{MNE-Python}
-(\citeproc{ref-gramfort2013}{Gramfort, 2013}) pipelines\ldots{}
 
 \subsection{Limitations and future
 directions}\label{limitations-and-future-directions}
@@ -1039,37 +1041,45 @@ We kept the exemplary models simple, but can be extended by adding
 varying/random effects (intercept and slope) for item (e.g.,
 word)\ldots{} but also continuous predictors at the trial level?
 
-\subsection{Conclusions}\label{conclusions}
-
-\ldots{}
-
 \newpage
 
 \section{Data and code availability}\label{data-and-code-availability}
 
 The simulation results as well as the \texttt{R} code to reproduce the
 simulations are available on GitHub:
-\url{https://github.com/lnalborczyk/brms_meeg}.
+\url{https://github.com/lnalborczyk/brms_meeg}. The \texttt{neurogam\ R}
+package is available at \url{https://github.com/lnalborczyk/neurogam}.
 
 \section{Packages}\label{packages}
 
-We used R version 4.2.3 (\citeproc{ref-base}{R Core Team, 2023}) and the
-following R packages: brms v. 2.22.0 (\citeproc{ref-brms2017}{Bürkner,
-2017}, \citeproc{ref-brms2018}{2018}, \citeproc{ref-brms2021}{2021}),
-changepoint v. 2.2.4 (\citeproc{ref-changepoint2022}{Killick et al.,
-2022b}; \citeproc{ref-changepoint2014}{Killick \& Eckley, 2014}),
-grateful v. 0.2.10 (\citeproc{ref-grateful}{Rodriguez-Sanchez \&
-Jackson, 2023}), knitr v. 1.45 (\citeproc{ref-knitr2014}{Xie, 2014},
-\citeproc{ref-knitr2015}{2015}, \citeproc{ref-knitr2023}{2023}),
-MetBrewer v. 0.2.0 (\citeproc{ref-MetBrewer}{Mills, 2022}), pakret v.
-0.2.2 (\citeproc{ref-pakret}{Gallou, 2024}), patchwork v. 1.2.0
+We used R version 4.4.3 (\citeproc{ref-base}{R Core Team, 2025}) and the
+following R packages: assertthat v. 0.2.1
+(\citeproc{ref-assertthat}{Wickham, 2019}), brms v. 2.22.0
+(\citeproc{ref-brms2017}{Bürkner, 2017}, \citeproc{ref-brms2018}{2018},
+\citeproc{ref-brms2021}{2021}), changepoint v. 2.3
+(\citeproc{ref-changepoint2024}{Killick et al., 2024};
+\citeproc{ref-changepoint2014}{Killick \& Eckley, 2014}), doParallel v.
+1.0.17 (\citeproc{ref-doParallel}{Corporation \& Weston, 2022}),
+easystats v. 0.7.4 (\citeproc{ref-easystats}{Lüdecke et al., 2022}),
+foreach v. 1.5.2 (\citeproc{ref-foreach}{Microsoft \& Weston, 2022}),
+furrr v. 0.3.1 (\citeproc{ref-furrr}{Vaughan \& Dancho, 2022}), future
+v. 1.34.0 (\citeproc{ref-RJ-2021-048}{Bengtsson, 2021}), ggrepel v.
+0.9.6 (\citeproc{ref-ggrepel}{Slowikowski, 2024}), glue v. 1.8.0
+(\citeproc{ref-glue}{Hester \& Bryan, 2024}), grateful v. 0.2.11
+(\citeproc{ref-grateful}{Rodriguez-Sanchez \& Jackson, 2024}), knitr v.
+1.50 (\citeproc{ref-knitr2014}{Xie, 2014},
+\citeproc{ref-knitr2015}{2015}, \citeproc{ref-knitr2025}{2025}),
+MetBrewer v. 0.2.0 (\citeproc{ref-MetBrewer}{Mills, 2022}), neurogam v.
+0.0.1 (\citeproc{ref-neurogam}{Nalborczyk, 2025}), pakret v. 0.2.2
+(\citeproc{ref-pakret}{Gallou, 2024}), patchwork v. 1.3.0
 (\citeproc{ref-patchwork}{T. L. Pedersen, 2024}), rmarkdown v. 2.29
 (\citeproc{ref-rmarkdown2024}{Allaire et al., 2024};
 \citeproc{ref-rmarkdown2018}{Xie et al., 2018},
 \citeproc{ref-rmarkdown2020}{2020}), scales v. 1.3.0
 (\citeproc{ref-scales}{Wickham et al., 2023}), scico v. 1.5.0
 (\citeproc{ref-scico}{T. L. Pedersen \& Crameri, 2023}), tidybayes v.
-3.0.6 (\citeproc{ref-tidybayes}{Kay, 2023}), tidyverse v. 2.0.0
+3.0.7 (\citeproc{ref-tidybayes}{Kay, 2024}), tidytext v. 0.4.2
+(\citeproc{ref-tidytext}{Silge \& Robinson, 2016}), tidyverse v. 2.0.0
 (\citeproc{ref-tidyverse}{Wickham et al., 2019}).
 
 \section{Acknolwedgements}\label{acknolwedgements}
@@ -1109,6 +1119,11 @@ sciences: Some solutions offered by generalized additive mixed models}
 (pp. 49--69). Springer International Publishing.
 \url{https://doi.org/10.1007/978-3-319-69830-4_4}
 
+\bibitem[\citeproctext]{ref-RJ-2021-048}
+Bengtsson, H. (2021). A unifying framework for parallel and distributed
+processing in r using futures. \emph{The R Journal}, \emph{13}(2),
+208--227. \url{https://doi.org/10.32614/RJ-2021-048}
+
 \bibitem[\citeproctext]{ref-benjamini1995}
 Benjamini, Y., \& Hochberg, Y. (1995). Controlling the False Discovery
 Rate: A Practical and Powerful Approach to Multiple Testing.
@@ -1147,6 +1162,11 @@ Neuroscience Methods}, \emph{250}, 126--136.
 Coretta, S., \& Bürkner, P.-. C. (2025). \emph{Bayesian beta regressions
 with brms in r: A tutorial for phoneticians}.
 \url{http://dx.doi.org/10.31219/osf.io/f9rqg_v1}
+
+\bibitem[\citeproctext]{ref-doParallel}
+Corporation, M., \& Weston, S. (2022). \emph{{doParallel}: Foreach
+parallel adaptor for the {``{parallel}''} package}.
+\url{https://CRAN.R-project.org/package=doParallel}
 
 \bibitem[\citeproctext]{ref-dimigen2021}
 Dimigen, O., \& Ehinger, B. V. (2021). Regression-based analysis of
@@ -1198,10 +1218,22 @@ univariate tests with application to M/EEG. \emph{NeuroImage},
 \emph{247}, 118824.
 \url{https://doi.org/10.1016/j.neuroimage.2021.118824}
 
+\bibitem[\citeproctext]{ref-gabry2019}
+Gabry, J., Simpson, D., Vehtari, A., Betancourt, M., \& Gelman, A.
+(2019). Visualization in Bayesian work{fl}ow. \emph{Journal of the Royal
+Statistical Society: Series A (Statistics in Society)}, \emph{182}(2),
+389--402. \url{https://doi.org/10.1111/rssa.12378}
+
 \bibitem[\citeproctext]{ref-pakret}
 Gallou, A. (2024). \emph{{pakret}: Cite {``{R}''} packages on the fly in
 {``{R Markdown}''} and {``{Quarto}''}}.
 \url{https://CRAN.R-project.org/package=pakret}
+
+\bibitem[\citeproctext]{ref-gelman2020}
+Gelman, A., Vehtari, A., Simpson, D., Margossian, C. C., Carpenter, B.,
+Yao, Y., Kennedy, L., Gabry, J., Bürkner, P.-C., \& Modrák, M. (2020).
+Bayesian workflow. \emph{arXiv:2011.01808 {[}Stat{]}}.
+\url{http://arxiv.org/abs/2011.01808}
 
 \bibitem[\citeproctext]{ref-gramfort2013}
 Gramfort, A. (2013). MEG and EEG data analysis with MNE-python.
@@ -1230,13 +1262,17 @@ production. \emph{Journal of Experimental Psychology: Learning, Memory,
 and Cognition}, \emph{43}(1), 128--149.
 \url{https://doi.org/10.1037/a0040332}
 
+\bibitem[\citeproctext]{ref-glue}
+Hester, J., \& Bryan, J. (2024). \emph{{glue}: Interpreted string
+literals}. \url{https://CRAN.R-project.org/package=glue}
+
 \bibitem[\citeproctext]{ref-holm1979}
 Holm, S. (1979). A simple sequentially rejective multiple test
 procedure. \emph{Scandinavian Journal of Statistics}, \emph{6}(2),
 65--70. \url{http://www.jstor.org/stable/4615733}
 
 \bibitem[\citeproctext]{ref-tidybayes}
-Kay, M. (2023). \emph{{tidybayes}: Tidy data and geoms for {Bayesian}
+Kay, M. (2024). \emph{{tidybayes}: Tidy data and geoms for {Bayesian}
 models}. \url{https://doi.org/10.5281/zenodo.1308151}
 
 \bibitem[\citeproctext]{ref-changepoint2014}
@@ -1246,12 +1282,12 @@ changepoint analysis. \emph{Journal of Statistical Software},
 \url{https://www.jstatsoft.org/article/view/v058i03}
 
 \bibitem[\citeproctext]{ref-changepoint}
-Killick, R., Haynes, K., \& Eckley, I. A. (2022a). \emph{{changepoint}:
+Killick, R., Haynes, K., \& Eckley, I. A. (2022). \emph{{changepoint}:
 An {R} package for changepoint analysis}.
 \url{https://CRAN.R-project.org/package=changepoint}
 
-\bibitem[\citeproctext]{ref-changepoint2022}
-Killick, R., Haynes, K., \& Eckley, I. A. (2022b). \emph{{changepoint}:
+\bibitem[\citeproctext]{ref-changepoint2024}
+Killick, R., Haynes, K., \& Eckley, I. A. (2024). \emph{{changepoint}:
 An {R} package for changepoint analysis}.
 \url{https://CRAN.R-project.org/package=changepoint}
 
@@ -1279,6 +1315,12 @@ significant effects in any {ERP} experiment (and why you shouldn't).
 \emph{Psychophysiology}, \emph{54}(1), 146--157.
 \url{https://doi.org/10.1111/psyp.12639}
 
+\bibitem[\citeproctext]{ref-easystats}
+Lüdecke, D., Ben-Shachar, M. S., Patil, I., Wiernik, B. M., Bacher, E.,
+Thériault, R., \& Makowski, D. (2022). {easystats}: Framework for easy
+statistical modeling, visualization, and reporting. \emph{CRAN}.
+\url{https://doi.org/10.32614/CRAN.package.easystats}
+
 \bibitem[\citeproctext]{ref-maris2011}
 Maris, E. (2011). Statistical testing in electrophysiological studies.
 \emph{Psychophysiology}, \emph{49}(4), 549--565.
@@ -1302,6 +1344,10 @@ S. (2015). Age Effects in L2 Grammar Processing as Revealed by ERPs and
 How (Not) to Study Them. \emph{PLOS ONE}, \emph{10}(12), e0143328.
 \url{https://doi.org/10.1371/journal.pone.0143328}
 
+\bibitem[\citeproctext]{ref-foreach}
+Microsoft, \& Weston, S. (2022). \emph{{foreach}: Provides foreach
+looping construct}. \url{https://CRAN.R-project.org/package=foreach}
+
 \bibitem[\citeproctext]{ref-miller2025}
 Miller, D. L. (2025). Bayesian views of generalized additive modelling.
 \emph{Methods in Ecology and Evolution}.
@@ -1311,6 +1357,10 @@ Miller, D. L. (2025). Bayesian views of generalized additive modelling.
 Mills, B. R. (2022). \emph{{MetBrewer}: Color palettes inspired by works
 at the metropolitan museum of art}.
 \url{https://CRAN.R-project.org/package=MetBrewer}
+
+\bibitem[\citeproctext]{ref-neurogam}
+Nalborczyk, L. (2025). \emph{{neurogam}: Precise temporal localisation
+of m/EEG effects with bayesian generalised additive multilevel models}.
 
 \bibitem[\citeproctext]{ref-nalborczyk2019}
 Nalborczyk, L., Batailler, C., Lœvenbruck, H., Vilain, A., \& Bürkner,
@@ -1361,7 +1411,7 @@ of Neuroscience Methods}, \emph{250}, 85--93.
 \url{https://doi.org/10.1016/j.jneumeth.2014.08.003}
 
 \bibitem[\citeproctext]{ref-base}
-R Core Team. (2023). \emph{{R}: A language and environment for
+R Core Team. (2025). \emph{{R}: A language and environment for
 statistical computing}. R Foundation for Statistical Computing.
 \url{https://www.R-project.org/}
 
@@ -1389,8 +1439,8 @@ Computing}, \emph{33}(1), 17.
 \url{https://doi.org/10.1007/s11222-022-10167-2}
 
 \bibitem[\citeproctext]{ref-grateful}
-Rodriguez-Sanchez, F., \& Jackson, C. P. (2023). \emph{{grateful}:
-Facilitate citation of r packages}.
+Rodriguez-Sanchez, F., \& Jackson, C. P. (2024). \emph{{grateful}:
+Facilitate citation of {R} packages}.
 \url{https://pakillo.github.io/grateful/}
 
 \bibitem[\citeproctext]{ref-rosenblatt2018}
@@ -1417,6 +1467,11 @@ tests of MEG/EEG data do not establish significance of effect latency or
 location. \emph{Psychophysiology}, \emph{56}(6).
 \url{https://doi.org/10.1111/psyp.13335}
 
+\bibitem[\citeproctext]{ref-tidytext}
+Silge, J., \& Robinson, D. (2016). {tidytext}: Text mining and analysis
+using tidy data principles in r. \emph{JOSS}, \emph{1}(3).
+\url{https://doi.org/10.21105/joss.00037}
+
 \bibitem[\citeproctext]{ref-skukies_modelling_2021}
 Skukies, R., \& Ehinger, B. (2021). Modelling event duration and overlap
 during {EEG} analysis. \emph{Journal of Vision}, \emph{21}(9), 2037.
@@ -1426,6 +1481,11 @@ during {EEG} analysis. \emph{Journal of Vision}, \emph{21}(9), 2037.
 Skukies, R., Schepers, J., \& Ehinger, B. (2024, December 9).
 \emph{Brain responses vary in duration - modeling strategies and
 challenges}. \url{https://doi.org/10.1101/2024.12.05.626938}
+
+\bibitem[\citeproctext]{ref-ggrepel}
+Slowikowski, K. (2024). \emph{{ggrepel}: Automatically position
+non-overlapping text labels with {``{ggplot2}''}}.
+\url{https://CRAN.R-project.org/package=ggrepel}
 
 \bibitem[\citeproctext]{ref-smith2014a}
 Smith, N. J., \& Kutas, M. (2014a). Regression{-}based estimation of ERP
@@ -1474,6 +1534,15 @@ Computational and Graphical Statistics}, \emph{27}(3), 612--627.
 \bibitem[\citeproctext]{ref-reticulate}
 Ushey, K., Allaire, J., \& Tang, Y. (2024). \emph{Reticulate: Interface
 to 'python'}. \url{https://CRAN.R-project.org/package=reticulate}
+
+\bibitem[\citeproctext]{ref-furrr}
+Vaughan, D., \& Dancho, M. (2022). \emph{{furrr}: Apply mapping
+functions in parallel using futures}.
+\url{https://CRAN.R-project.org/package=furrr}
+
+\bibitem[\citeproctext]{ref-assertthat}
+Wickham, H. (2019). \emph{{assertthat}: Easy pre and post assertions}.
+\url{https://CRAN.R-project.org/package=assertthat}
 
 \bibitem[\citeproctext]{ref-tidyverse}
 Wickham, H., Averick, M., Bryan, J., Chang, W., McGowan, L. D.,
@@ -1530,9 +1599,9 @@ Hall/CRC.
 Xie, Y. (2015). \emph{Dynamic documents with {R} and knitr} (2nd ed.).
 Chapman; Hall/CRC. \url{https://yihui.org/knitr/}
 
-\bibitem[\citeproctext]{ref-knitr2023}
-Xie, Y. (2023). \emph{{knitr}: A general-purpose package for dynamic
-report generation in r}. \url{https://yihui.org/knitr/}
+\bibitem[\citeproctext]{ref-knitr2025}
+Xie, Y. (2025). \emph{{knitr}: A general-purpose package for dynamic
+report generation in {R}}. \url{https://yihui.org/knitr/}
 
 \bibitem[\citeproctext]{ref-rmarkdown2018}
 Xie, Y., Allaire, J. J., \& Grolemund, G. (2018). \emph{R markdown: The
@@ -1575,7 +1644,7 @@ average cross-temporal generalisation matrix of decoding performance
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-sim-timegen-1.pdf}
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-sim-timegen-1.png}
 
 }
 
@@ -1667,7 +1736,7 @@ distance between the covariate \(\mathbf{s}_{i}\) and the knot location
 decoding accuracy being above chance level (right) according to the
 bivariate GAM.}
 
-{\centering \includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/gam-timegen-post-preds-1.pdf}
+{\centering \includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/gam-timegen-post-preds-1.png}
 
 }
 
@@ -1785,7 +1854,7 @@ predictive checks for the GAM with varying k (in rows).}
 
 \centering{
 
-\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-choose-k-1.pdf}
+\includegraphics[width=1\textwidth,height=\textheight]{brms_meeg_files/figure-pdf/fig-choose-k-1.png}
 
 }
 
@@ -1812,6 +1881,7 @@ which come with sensible defaults.
 \CommentTok{\# using the testing\_through\_time() function from the neurogam package}
 \NormalTok{gam\_onset\_offset }\OtherTok{\textless{}{-}} \FunctionTok{testing\_through\_time}\NormalTok{(}
     \AttributeTok{data =}\NormalTok{ raw\_df,}
+    \AttributeTok{threshold =} \DecValTok{10}\NormalTok{,}
     \AttributeTok{participant\_id =} \StringTok{"participant"}\NormalTok{, }\AttributeTok{meeg\_id =} \StringTok{"eeg"}\NormalTok{,}
     \AttributeTok{time\_id =} \StringTok{"time"}\NormalTok{, }\AttributeTok{predictor\_id =} \StringTok{"condition"}\NormalTok{,}
     \AttributeTok{warmup =} \DecValTok{1000}\NormalTok{, }\AttributeTok{iter =} \DecValTok{5000}\NormalTok{, }\AttributeTok{chains =} \DecValTok{4}\NormalTok{, }\AttributeTok{cores =} \DecValTok{4}
@@ -1827,7 +1897,10 @@ using the \texttt{rpy2} module, and can easily be integrated into
 \texttt{MNE-Python} pipelines. For example, we use it below to estimate
 the onset and offset of effects for one channel from a MNE evoked
 object. Note that the code used to reshape the \texttt{sample\ MNE}
-dataset is provided later.
+dataset is provided later, and we refer to the
+\href{https://mne.tools/stable/auto_tutorials/epochs/50_epochs_to_data_frame.html}{MNE
+documentation} about converting \texttt{MNE} epochs to \texttt{Pandas}
+dataframes in long format.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -1852,7 +1925,7 @@ dataset is provided later.
 \CommentTok{\# using the testing\_through\_time() function from the neurogam R package}
 \NormalTok{gam\_onset\_offset }\OperatorTok{=}\NormalTok{ neurogam.testing\_through\_time(}
 \NormalTok{    data}\OperatorTok{=}\NormalTok{reshaped\_df\_r,}
-\NormalTok{    post\_prob\_ratio\_threshold}\OperatorTok{=}\DecValTok{3}\NormalTok{,}
+\NormalTok{    threshold}\OperatorTok{=}\DecValTok{10}\NormalTok{,}
 \NormalTok{    multilevel}\OperatorTok{=}\VariableTok{False}
 \NormalTok{    )}
 
