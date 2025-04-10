@@ -2,7 +2,7 @@
 # Split-half reliability of onset/offset estimates        #
 # Written by Ladislas Nalborczyk                          #
 # Contact: ladislas.nalborczyk@gmail.com                  #
-# Last updated on April 7, 2025                           #
+# Last updated on April 9, 2025                           #
 ###########################################################
 
 # importing R packages
@@ -16,6 +16,10 @@ library(brms)
 # for setting up the cluster
 library(doParallel)
 library(foreach)
+
+# timing the simulations
+library(tictoc)
+tic()
 
 # total number of total CPU cores available on the HPC node
 total_cores <- 12
@@ -64,10 +68,10 @@ unique_participants <- unique(raw_df$participant)
 n_participants <- as.numeric(length(unique_participants) )
 
 # defining the number of splits
-n_splits <- 100
+n_splits <- 1000
 
 # number of posterior samples to use to compute the posterior probability ratio
-n_post_samples <- 1e4
+# n_post_samples <- 1e4
 
 # creating a dataframe where each participant appears in every split
 split_df <- crossing(participant = unique_participants, split_number = 1:n_splits)
@@ -141,9 +145,9 @@ reliability_results <- tryCatch({foreach(
         message_parallel("\nModel fitted...")
         prob_y_above_0 <- data.frame(time = unique(gam_split$data$time) )|>
             # using a subset of posterior samples
-            add_epred_draws(object = gam_split, ndraws = n_post_samples) |>
+            # add_epred_draws(object = gam_split, ndraws = n_post_samples) |>
             # or using all posterior samples
-            # add_epred_draws(object = gam_split)|>
+            add_epred_draws(object = gam_split)|>
             # converting to dataframe
             data.frame()|>
             group_by(time)|>
@@ -151,21 +155,21 @@ reliability_results <- tryCatch({foreach(
             mutate(prob_ratio = m / (1 - m) )|>
             ungroup()|>
             # ensuring there is no 0 or +Inf values
-            # mutate(prob_ratio = ifelse(is.infinite(prob_ratio), ndraws(gam_split), prob_ratio) )|>
-            # mutate(prob_ratio = ifelse(prob_ratio == 0, 1 / ndraws(gam_split), prob_ratio) )
-            mutate(prob_ratio = ifelse(is.infinite(prob_ratio), n_post_samples, prob_ratio) )|>
-            mutate(prob_ratio = ifelse(prob_ratio == 0, 1 / n_post_samples, prob_ratio) ) 
+            mutate(prob_ratio = ifelse(is.infinite(prob_ratio), ndraws(gam_split), prob_ratio) )|>
+            mutate(prob_ratio = ifelse(prob_ratio == 0, 1 / ndraws(gam_split), prob_ratio) )
+            # mutate(prob_ratio = ifelse(is.infinite(prob_ratio), n_post_samples, prob_ratio) )|>
+            # mutate(prob_ratio = ifelse(prob_ratio == 0, 1 / n_post_samples, prob_ratio) ) 
         
         # finding clusters
         onset_offset_brms <- find_clusters(
             data = prob_y_above_0 |> select(time, value = prob_ratio),
             threshold = post_prob_ratio_threshold
             ) |>
-            mutate(split_id = formatC(x = i, width = 3, flag = 0) )|>
-            select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset)|>
-            mutate(method = "brms")|>
-            pivot_longer(cols = onset:offset)|>
-            select(split_id, method, cluster_id, onset_offset = name, value)|>
+            mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
+            mutate(method = "brms") |>
+            pivot_longer(cols = onset:offset) |>
+            select(split_id, method, cluster_id, onset_offset = name, value) |>
             data.frame()
         
         # converting data to a matrix (for later use in MNE functions)
@@ -177,16 +181,16 @@ reliability_results <- tryCatch({foreach(
         
         # massive univariate t-tests
         tests_results <- summary_df_split|>
-            group_by(time)|>
+            group_by(time) |>
             summarise(
                 tval = t.test(x = auc_mean, mu = chance_level)$statistic^2,
                 pval = t.test(x = auc_mean, mu = chance_level)$p.value
-                )|>
+                ) |>
             mutate(
                 pval_bh = p.adjust(p = pval, method = "BH"),
                 pval_by = p.adjust(p = pval, method = "BY"),
                 pval_holm = p.adjust(p = pval, method = "holm")
-                )|>
+                ) |>
             ungroup()
             
         # using the binary segmentation method to identify onsets and offsets
@@ -196,22 +200,22 @@ reliability_results <- tryCatch({foreach(
             cluster_id = 1,
             onset = tests_results$time[res@cpts[1]],
             offset = tests_results$time[res@cpts[2]]
-            )|>
-            mutate(method = "cpt")|>
-            pivot_longer(cols = onset:offset)|>
-            select(split_id, method, cluster_id, onset_offset = name, value)|>
+            ) |>
+            mutate(method = "cpt") |>
+            pivot_longer(cols = onset:offset) |>
+            select(split_id, method, cluster_id, onset_offset = name, value) |>
             data.frame()
         
         # finding clusters
         onset_offset_raw_p <- find_clusters(
             data = tests_results|> mutate(pval = pval * (-1) )|> select(time, value = pval),
             threshold = -alpha_level
-            )|>
-            mutate(split_id = formatC(x = i, width = 3, flag = 0) )|>
-            select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset)|>
-            mutate(method = "raw_p")|>
-            pivot_longer(cols = onset:offset)|>
-            select(split_id, method, cluster_id, onset_offset = name, value)|>
+            ) |>
+            mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
+            mutate(method = "raw_p") |>
+            pivot_longer(cols = onset:offset) |>
+            select(split_id, method, cluster_id, onset_offset = name, value) |>
             data.frame()
         
         onset_offset_pval_bh <- find_clusters(
@@ -486,8 +490,10 @@ temp_reliability_results <- bind_rows(
 reliability_results <- bind_rows(reliability_results, temp_reliability_results)
 
 # saving the results
-# saveRDS(object = reliability_results, file = "./results/reliability_results_cluster.rds")
-saveRDS(object = reliability_results, file = "./results/reliability_results_100splits.rds")
+saveRDS(object = reliability_results, file = "./results/reliability_results_1000splits.rds")
 
 # stopping the cluster
 stopCluster(cl)
+
+# timing the simulations
+toc()

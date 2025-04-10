@@ -24,3 +24,6 @@ ggrepel
 tidytext
 reticulate
 tinytable
+gt
+nlme
+mgcv

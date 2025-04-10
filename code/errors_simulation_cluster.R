@@ -2,7 +2,7 @@
 # Monte-Carlo simulation of onset/offset error properties #
 # Written by Ladislas Nalborczyk                          #
 # Contact: ladislas.nalborczyk@gmail.com                  #
-# Last updated on April 7, 2025                           #
+# Last updated on April 9, 2025                           #
 ###########################################################
 
 # importing R packages
@@ -16,6 +16,10 @@ library(brms)
 # for setting up the cluster
 library(doParallel)
 library(foreach)
+
+# timing the simulations
+library(tictoc)
+tic()
 
 # total number of total CPU cores available on the HPC node
 total_cores <- 12
@@ -36,9 +40,6 @@ source("code/eeg_noise.R")
 # importing the ERP template with true onset = 160 ms, F = 81, and max at F = 126
 source("code/erp_template.R")
 
-# importing helper functions from Guillaume Rouselet
-# source("code/functions.R")
-
 # importing home-made helper functions
 source("code/utils.R")
 
@@ -46,7 +47,7 @@ source("code/utils.R")
 meanpower <- unlist(read.table("code/meanpower.txt") )
 
 # defining the total number of simulations to be performed
-nsims <- 100
+nsims <- 1000
 
 # defining simulation parameters
 n_trials <- 50 # number of trials
@@ -337,7 +338,10 @@ sim_results <- bind_rows(sim_results_list)
 
 # saving the simulation results
 # saveRDS(object = sim_results, file = "./results/errors_results_cluster.rds")
-saveRDS(object = sim_results, file = "./results/errors_results_100sims.rds")
+saveRDS(object = sim_results, file = "./results/errors_results_1000sims.rds")
 
 # stopping the cluster
 stopCluster(cl)
+
+# timing the simulations
+toc()

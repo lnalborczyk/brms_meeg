@@ -2,7 +2,7 @@
 # Monte-Carlo simulation of onset/offset error properties #
 # Written by Ladislas Nalborczyk                          #
 # Contact: ladislas.nalborczyk@gmail.com                  #
-# Last updated on April 7, 2025                           #
+# Last updated on April 9, 2025                           #
 ###########################################################
 
 # importing R packages
@@ -14,6 +14,10 @@ library(brms)
 # setting up parallel workers
 library(purrr)
 library(furrr)
+
+# timing the simulations
+library(tictoc)
+tic()
 
 # total number of total CPU cores available on the HPC node
 total_cores <- 12
@@ -49,7 +53,7 @@ single_iteration <- function (i) {
     temp_results <- data.frame()
     
     # number of posterior samples to use to compute the posterior probability ratio
-    n_post_samples <- 1e4
+    # n_post_samples <- 1e4
     
     # defining the parameter grid
     param_grid <- crossing(
@@ -75,7 +79,7 @@ single_iteration <- function (i) {
                 n_trials = n_trials, n_ppt = n_ppt, outvar = outvar,
                 srate = srate, ronset = ronset
                 )
-    
+            
             # averaging across participants
             summary_df <- raw_df %>%
                 summarise(
@@ -116,8 +120,8 @@ single_iteration <- function (i) {
                 )
             
             prob_y_above_0 <- error_model$data %>%
-                add_epred_draws(object = error_model, ndraws = n_post_samples) %>%
-                # add_epred_draws(object = error_model) %>%
+                # add_epred_draws(object = error_model, ndraws = n_post_samples) %>%
+                add_epred_draws(object = error_model) %>%
                 data.frame() %>%
                 dplyr::select(participant, time, condition, .epred, .draw) %>%
                 pivot_wider(names_from = condition, values_from = .epred) %>%
@@ -131,16 +135,16 @@ single_iteration <- function (i) {
                 mutate(
                     prob_ratio = ifelse(
                         is.infinite(prob_ratio),
-                        # ndraws(error_model),
-                        n_post_samples,
+                        ndraws(error_model),
+                        # n_post_samples,
                         prob_ratio
                         )
                     ) %>%
                 mutate(
                     prob_ratio = ifelse(
                         prob_ratio == 0,
-                        # 1 / ndraws(error_model),
-                        1 / n_post_samples,
+                        1 / ndraws(error_model),
+                        # 1 / n_post_samples,
                         prob_ratio
                         )
                     )
@@ -177,8 +181,10 @@ results <- future_map_dfr(
     )
 
 # saving the simulation results
-# saveRDS(object = results, file = "./results/meta_gam_error_properties_cluster.rds")
 saveRDS(object = results, file = "./results/meta_gam_error_properties_100sims.rds")
 
 # resetting back to sequential and releasing parallel workers
 plan(sequential)
+
+# timing the simulations
+toc()
