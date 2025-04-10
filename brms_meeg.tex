@@ -1,5 +1,5 @@
 \documentclass[
-  doc,
+  man,
   floatsintext,
   longtable,
   a4paper,
@@ -11,8 +11,6 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 
-\geometry{inner=1in, outer=1in}
-\fancyhfoffset[LE,RO]{0cm}
 
 
 \usepackage[bidi=default]{babel}
@@ -245,16 +243,16 @@ individual time points to clusters, it makes difficult to draw precise
 conclusions about the onset or offset of observed effects. Here, we
 introduce a \emph{model-based} approach for analysing M/EEG timeseries
 such as event-related potentials (ERPs) or decoding performance over
-time. Our method leverages Bayesian generalised additive multilevel
-models (GAMMs), providing posterior probabilities that an effect is
-above zero (or above chance) at each time point, while naturally
-accounting for temporal dependencies and between-subject variability.
-Using both simulated and actual M/EEG datasets, we demonstrate that this
-approach substantially outperforms conventional methods in estimating
-the onset and offset of neural effects, yielding more precise and
-reliable results. We provide an R package implementing the method and
-show how it can be seamlessly integrated into M/EEG analysis pipelines
-using MNE-Python.}
+time. Our approach leverages Bayesian generalised additive multilevel
+models, providing posterior probabilities that an effect is above zero
+(or above chance) at each time point, while naturally accounting for
+temporal dependencies and between-subject variability. Using both
+simulated and actual M/EEG datasets, we demonstrate that this approach
+substantially outperforms conventional methods in estimating the onset
+and offset of neural effects, yielding more precise and reliable
+results. We provide an R package implementing the method and describe
+how it can be integrated into M/EEG analysis pipelines using
+MNE-Python.}
 
 \keywords{EEG, MEG, cluster-based inference, simulation, multiple
 comparisons, generalised additive models, mixed-effects
@@ -395,54 +393,61 @@ M/EEG studies is to determine whether, when, and where neural responses
 differ across experimental conditions or participant groups.
 
 The conventional approach involves mass-univariate statistical testing
-with a unique threshold, followed by corrections for multiple
-comparisons with the goal of maintaining the familywise error rate
-(FWER) or false discovery rate (FDR) at the nominal level. Cluster-based
-inference is the most common way of achieving this sort of error control
-in the M/EEG literature, being the default option in several software
-programs. While effective for controlling error rates, cluster-based
-inference comes with a significant limitation: they shift the focus of
-inference from individual time points to clusters, making it difficult
-to draw precise conclusions about the onset or offset of observed
-effects (\citeproc{ref-maris2007}{Maris \& Oostenveld, 2007};
+through time and/or space followed by some form or correction for
+multiple comparisons with the goal of maintaining the familywise error
+rate (FWER) or false discovery rate (FDR) at the nominal level (e.g.,
+5\%). Cluster-based inference is the most common way of achieving this
+sort of error control in the M/EEG literature, being the recommended
+approach in several software programs (e.g., \texttt{EEGlab} or
+\texttt{MNE-Python}, \citeproc{ref-delorme2004}{Delorme \& Makeig,
+2004}; \citeproc{ref-gramfort2013}{Gramfort, 2013}). While effective for
+controlling error rates, cluster-based inference comes with a
+significant limitation: by shifting the focus of inference from
+individual time points to clusters, it prevents the ability to draw
+precise conclusions about the onset or offset of observed effects
+(\citeproc{ref-maris2007}{Maris \& Oostenveld, 2007};
 \citeproc{ref-sassenhagen2019}{Sassenhagen \& Draschkow, 2019}). As
-pointed by Maris \& Oostenveld (\citeproc{ref-maris2007}{2007}); ``there
-is a conflict between this interest in localized effects and our choice
-for a global null hypothesis: by controlling the FA {[}false alarm{]}
-rate under this global null hypothesis, one cannot quantify the
+pointed out by Maris \& Oostenveld (\citeproc{ref-maris2007}{2007});
+``there is a conflict between this interest in localized effects and our
+choice for a global null hypothesis: by controlling the FA {[}false
+alarm{]} rate under this global null hypothesis, one cannot quantify the
 uncertainty in the spatiotemporal localization of the effect''. Even
-worse, as noted by Rosenblatt et al.
-(\citeproc{ref-rosenblatt2018}{2018}), cluster-based inference suffers
-from low spatial resolution: ``Since discovering a cluster means that
-`there exists at least one voxel with an evoked response in the
-cluster', and not that `all the voxels in the cluster have an evoked
-response', it follows that the larger the detected cluster, the less
-information we have on the location of the activation.'' As a
-consequence, cluster-based inferenc has been shown\ldots{}
+worse, Rosenblatt et al. (\citeproc{ref-rosenblatt2018}{2018}) note that
+cluster-based inference suffers from low spatial resolution: ``Since
+discovering a cluster means that `there exists at least one voxel with
+an evoked response in the cluster', and not that `all the voxels in the
+cluster have an evoked response', it follows that the larger the
+detected cluster, the less information we have on the location of the
+activation.'' As a consequence, cluster-based inference is expected to
+perform poorly for localising the onset of M/EEG effects; a property
+that was later demonstrated in simulations studies (e.g.,
+\citeproc{ref-rousselet_using_2025}{Rousselet, 2025};
+\citeproc{ref-sassenhagen2019}{Sassenhagen \& Draschkow, 2019}).
 
 To overcome the limitations of cluster-based inference, we introduce a
-novel model-based approach for precisely localising M/EEG effects in
-time (space, and other dimensions). The proposed approach, based on
+novel \emph{model-based} approach for precisely localising M/EEG effects
+in time, space, and other dimensions. The proposed approach, based on
 Bayesian generalised additive multilevel models, allows quantifying the
 posterior probability of effects being above chance at the level of
-timesteps, sensors, voxels, etc., while naturally taking into account
-spatiotemporal dependencies present in M/EEG timeseries. We compare the
-performance of the proposed approach to well-established alternative
-methods using both simulated and actual M/EEG data and show that it
-significantly outperforms alternative methods in estimating the onset
-and offset of M/EEG effects.
+timesteps, sensors, voxels, or other dimensions, while naturally taking
+into account spatiotemporal dependencies present in M/EEG timeseries. We
+compare the performance of the proposed approach to well-established
+alternative methods using both simulated and actual M/EEG data and show
+that it significantly outperforms alternative methods in estimating the
+onset and offset of M/EEG effects.
 
 \subsection{Cluster-based inference}\label{cluster-based-inference}
 
-Different methods exist to control the family-wiser error rate (FWER),
-defined as the type-1 error rate (false positive) over an ensemble
-(family) of tests\ldots{} for instance the Bonferroni correction
-(\citeproc{ref-dunn1961}{Dunn, 1961}), however this method is generally
-overconservative as it assumes statistical independence of tests, an
-assumptions that is clearly violated in the context of M/EEG timeseries
-with spatiotemporal dependencies\ldots{} or the false discovery rate
-(FDR), defined as the proportion of false positive among positive tests
-(e.g., \citeproc{ref-benjamini1995}{Benjamini \& Hochberg, 1995};
+The issue with multiple comparisons\ldots{} Different methods exist to
+control the family-wiser error rate (FWER), defined as the type-1 error
+rate (false positive) over an ensemble (family) of tests\ldots{} for
+instance the Bonferroni correction (\citeproc{ref-dunn1961}{Dunn,
+1961}), however this method is generally overconservative as it assumes
+statistical independence of tests, an assumptions that is clearly
+violated in the context of M/EEG timeseries with spatiotemporal
+dependencies\ldots{} or the false discovery rate (FDR), defined as the
+proportion of false positive among positive tests (e.g.,
+\citeproc{ref-benjamini1995}{Benjamini \& Hochberg, 1995};
 \citeproc{ref-benjamini2001}{Benjamini \& Yekutieli, 2001})\ldots{}
 
 On popular technique to account for spatiotemporal dependencies while
@@ -482,30 +487,31 @@ score at each timestep/voxel \(t\) is given by:
 
 where \(h_{0}\) is typically \(0\) and parameters \(E\) and \(H\) are
 set a priori (typically to 0.5 and 2, respectively) and control the
-influence of the extend and height on the TFCE. Then, p-value for
-timestep/voxel \(t\) is computed by comparing it TFCE with the null
-distribution of TFCE values. For each permuted signal, we keep the
-maximal value over the whole signal for the null distribution of the
-TFCE. The TFCE combined with permutation (assuming a large enough number
-of permutations) has been shown to provide accurate type 1 FWER (e.g.,
-\citeproc{ref-pernet2015}{Pernet et al., 2015}). However, previous
-simulation work showed that cluster-based methods have indeed poor
-performance in localising the onset of M/EEG effects (e.g.,
-\citeproc{ref-rousselet_using_2025}{Rousselet, 2025};
+influence of the extend and height on the TFCE. Note that in practise,
+this intergral is approximated by a sum over small \(h\) increments.
+Then, p-value for timestep/voxel \(t\) is computed by comparing it TFCE
+with the null distribution of TFCE values. For each permuted signal, we
+keep the maximal value over the whole signal for the null distribution
+of the TFCE. The TFCE combined with permutation (assuming a large enough
+number of permutations) has been shown to provide accurate type 1 FWER
+(e.g., \citeproc{ref-pernet2015}{Pernet et al., 2015}). However,
+previous simulation work showed that cluster-based methods (including
+the TFCE method) perform poorly in localising the onset of M/EEG effects
+(e.g., \citeproc{ref-rousselet_using_2025}{Rousselet, 2025};
 \citeproc{ref-sassenhagen2019}{Sassenhagen \& Draschkow, 2019}).
 
 To sum up this section, cluster-based inference main limitations is that
 it provides inference at the cluster level only, not allowing inference
-at the level of timesteps, sensors, etc. Thus, it does not allow
-inferring the localisation of effects (\citeproc{ref-maris2011}{Maris,
-2011}; for more details on cluster-based inference, see for instance
-\citeproc{ref-maris2007}{Maris \& Oostenveld, 2007};
-\citeproc{ref-sassenhagen2019}{Sassenhagen \& Draschkow, 2019}). In the
-following, we briefly review previous modelling work. Then, we provide a
-brief introduction to Bayesian statistical modelling, before moving to
-generalised additive models (GAMs) and generalised additive multilevel
-models (GAMMs) to illustrate how they can be used to precisely localise
-the onset and offset of M/EEG effects.
+at the level of timesteps, sensors, etc. As a consequence, it does not
+allow inferring the localisation of effects (for more details on
+cluster-based inference, see for instance
+\citeproc{ref-maris2011}{Maris, 2011}; \citeproc{ref-maris2007}{Maris \&
+Oostenveld, 2007}; \citeproc{ref-sassenhagen2019}{Sassenhagen \&
+Draschkow, 2019}). In the following, we briefly review previous M/EEG
+modelling work. Then, we provide a brief introduction to generalised
+additive models (GAMs) and Bayesian generalised additive multilevel
+models (BGAMMs) to illustrate how these models can be used to precisely
+localise the onset and offset of M/EEG effects.
 
 \subsection{Previous work on modelling M/EEG
 data}\label{previous-work-on-modelling-meeg-data}
@@ -541,7 +547,8 @@ Disentangling overlapping processes
 \citeproc{ref-skukies_modelling_2021}{Skukies \& Ehinger, 2021})\ldots{}
 Weighting single trials (\citeproc{ref-pernet2022}{Pernet,
 2022})\ldots{} The LIMO toolbox (\citeproc{ref-pernet2011}{Pernet et
-al., 2011})\ldots{}
+al., 2011}) using linear and 2-stage regression (not a proper multilevel
+model)\ldots{}
 
 Recently, Teichmann (\citeproc{ref-teichmann2022}{2022}) provided a
 detailed tutorial on using Bayes factors (BFs) to analyse the 1D or 2D
@@ -738,8 +745,6 @@ together with the raw data.
 
 \CommentTok{\# fitting the BGAM}
 \NormalTok{gam }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
-    \CommentTok{\# cubic regression splines with k{-}1 basis functions}
-    \CommentTok{\# eeg \textasciitilde{} condition + s(time, bs = "cr", k = 20, by = condition),}
     \CommentTok{\# thin{-}plate regression splines with k{-}1 basis functions}
 \NormalTok{    eeg }\SpecialCharTok{\textasciitilde{}}\NormalTok{ condition }\SpecialCharTok{+} \FunctionTok{s}\NormalTok{(time, }\AttributeTok{bs =} \StringTok{"tp"}\NormalTok{, }\AttributeTok{k =} \DecValTok{20}\NormalTok{, }\AttributeTok{by =}\NormalTok{ condition),}
     \AttributeTok{data =}\NormalTok{ ppt\_df,}
@@ -755,11 +760,12 @@ together with the raw data.
 
 However, the previous model only included constant (fixed) effects, thus
 not properly accounting for between-participant variability. We next fit
-a multilevel version of the BGAM (BGAMM). Although it is possible to fit
-a BGAMM at the single-trial level, we present a resource-efficient
-version of the model that is fitted directly on the by-participant
-summary statistics (mean and SD), similar to what is done in
-meta-analysis.
+a multilevel version of the BGAM (BGAMM, see
+\citeproc{ref-nalborczyk2019}{Nalborczyk et al., 2019}). Although it is
+possible to fit a BGAMM at the single-trial level, we present a
+computationally-lighter version of the model that is fitted directly on
+by-participant summary statistics (mean and SD), similar to what is done
+in meta-analysis.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -794,7 +800,8 @@ meta-analysis.
 We depict the posterior predictions together with the posterior estimate
 of the slope for \texttt{condition} at each timestep
 (Figure~\ref{fig-plot-post-slope}). This figure suggests that the BGAMM
-provides an adequate description of the simulated data.
+provides an adequate description of the simulated data (see further
+posterior predictive checks in Section~\ref{sec-basis}).
 
 \begin{figure}[!htb]
 
@@ -812,9 +819,9 @@ difference in EEG activity (right) according to the BGAMM.}
 
 We then compute the posterior probability of the slope for
 \texttt{condition} being above \(0\) (Figure~\ref{fig-post-prob-ratio},
-left). We can also express this as the ratio of posterior probabilities
-(i.e., \(p/(1-p)\)) and visualise the timecourse of this ratio
-superimposed with the conventional thresholds on evidence ratios
+left). From this quantity, we then compute the ratio of posterior
+probabilities (i.e., \(p/(1-p)\)) and visualise the timecourse of this
+ratio superimposed with the conventional thresholds on evidence ratios
 (Figure~\ref{fig-post-prob-ratio}, right). Note that a ratio of 10 means
 that the probability of the difference being above 0 is 10 times higher
 than the probability of the difference not being above 0, given the
@@ -827,7 +834,9 @@ estimating the onset and offset of M/EEG effects.
 \caption{\label{fig-post-prob-ratio}Left: Posterior probability of the
 EEG difference (slope) being above 0 according to the BGAMM. Right:
 Ratio of posterior probability according to the BGAMM (on a log10
-scale). Timesteps above threshold (10) are highlighted in green.}
+scale). Timesteps above threshold (10) are highlighted in green. NB: the
+minimum and maximum possible ratio values are determined (bounded) by
+the number of available posterior samples in the model.}
 
 \centering{
 
@@ -874,8 +883,8 @@ threshold values for the BGAM (computed from 100 simulated datasets).}
 
 \newpage
 
-\subsection{Comparing the identified onsets/offsets to other
-approaches}\label{comparing-the-identified-onsetsoffsets-to-other-approaches}
+\subsection{Comparing the onsets/offsets estimates from other
+approaches}\label{comparing-the-onsetsoffsets-estimates-from-other-approaches}
 
 We then compared the ability of the BGAMM to correctly estimate the
 onset and offset of the ERP difference to other widely-used methods.
@@ -933,9 +942,9 @@ To assess the accuracy of group-level onset estimation, the various
 methods were compared using the bias (i.e., median(estimated-true)),
 median absolute error (MAE), root mean square error (RMSE), variance,
 and median absolute deviation (MAD) of onset/offset estimates computed
-on 1000 simulated datasets. As in Rousselet
+on 1,000 simulated datasets. As in Rousselet
 (\citeproc{ref-rousselet_using_2025}{2025}), each participant was
-assigned a random onset betwee, 150 and 170ms.
+assigned a random onset between 150 and 170ms.
 
 \subsection{Application to actual MEG
 data}\label{application-to-actual-meg-data}
@@ -984,7 +993,7 @@ decoding performance during the baseline period.
 We assessed the reliability of the proposed approach using a form of
 permutation-based split-half reliability (as for instance in
 \citeproc{ref-rosenblatt2018}{Rosenblatt et al., 2018}), which consisted
-of the following steps. First, we created 1000 split halves of the data
+of the following steps. First, we created 1,000 split halves of the data
 (i.e., with half the participants in the original data, that is, 16
 participants). For each split, we estimated the onset/offset using all
 methods described previously. Third, we summarised the distribution of
@@ -993,7 +1002,7 @@ between the split estimate and the estimate obtained using the full
 dataset) and the variance across splits. This approach allows assessing
 how similar the estimate of each half split is to the full dataset (thus
 acting as a proxy for the population) and how variable the estimates are
-(across split halves).
+across split halves.
 
 \begin{figure}[!htb]
 
@@ -1062,7 +1071,8 @@ included metrics.
 \begin{table}
 
 {\caption{{Summary statistics of the onset and offset estimates for each
-method (ordered by MAE).}{\label{tbl-simulation-results}}}}
+method (ordered by MAE).}{\label{tbl-simulation-results}}}
+\vspace{-20pt}}
 
 \fontsize{9.0pt}{10.8pt}\selectfont
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lccccc}
@@ -1151,10 +1161,12 @@ Figure~\ref{fig-onset-offset}).\footnote{As in Rousselet
   thus producing always one cluster.} Overall, the figure reveals that
 for all other methods, split datasets produce later onset estimates and
 earlier offset estimates (as compared to the estimates from the model
-fitted on the full dataset). These results highlight that the results of
-any method should be assessed using both i) good asymptotic properties
-on simulated data, ii) sensible identified clusters in actual data, and
-iii) reliable/stable estimates on actual data.
+fitted on the full dataset). These results highlight some desirable
+properties for a method aiming to precisely and reliably estimate the
+onset and offset of M/EEG effects, namely, it should i) have good
+asymptotic properties on simulated data, ii) provide sensible identified
+clusters in actual data, and iii) provide reliable/stable estimates on
+actual data.
 
 \begin{figure}[!htb]
 
@@ -1335,6 +1347,12 @@ with brms in r: A tutorial for phoneticians}.
 Corporation, M., \& Weston, S. (2022). \emph{{doParallel}: Foreach
 parallel adaptor for the {``{parallel}''} package}.
 \url{https://CRAN.R-project.org/package=doParallel}
+
+\bibitem[\citeproctext]{ref-delorme2004}
+Delorme, A., \& Makeig, S. (2004). EEGLAB: an open source toolbox for
+analysis of single-trial EEG dynamics including independent component
+analysis. \emph{Journal of Neuroscience Methods}, \emph{134}(1), 9--21.
+\url{https://doi.org/10.1016/j.jneumeth.2003.10.009}
 
 \bibitem[\citeproctext]{ref-dimigen2021}
 Dimigen, O., \& Ehinger, B. V. (2021). Regression-based analysis of
@@ -1856,15 +1874,14 @@ distance between the covariate \(\mathbf{s}_{i}\) and the knot location
 \NormalTok{timegen\_gam }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
     \CommentTok{\# 2D thin{-}plate spline (tp)}
 \NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{t2}\NormalTok{(train\_time, test\_time, }\AttributeTok{bs =} \StringTok{"tp"}\NormalTok{, }\AttributeTok{k =} \DecValTok{20}\NormalTok{),}
-    \CommentTok{\# auc \textasciitilde{} t2(train\_time, test\_time, bs = "tp", k = 30),}
     \AttributeTok{data =}\NormalTok{ timegen\_data,}
     \AttributeTok{family =} \FunctionTok{Beta}\NormalTok{(),}
     \AttributeTok{warmup =} \DecValTok{1000}\NormalTok{,}
     \AttributeTok{iter =} \DecValTok{2000}\NormalTok{,}
     \AttributeTok{chains =} \DecValTok{8}\NormalTok{,}
     \AttributeTok{cores =} \DecValTok{8}\NormalTok{,}
-    \AttributeTok{file =} \StringTok{"models/timegen\_gam\_t2.rds"}
-    \CommentTok{\# file = "models/timegen\_gam\_t2\_k30.rds"}
+    \AttributeTok{file =} \StringTok{"models/timegen\_gam\_t2.rds"} \CommentTok{\# k = 10}
+    \CommentTok{\# file = "models/timegen\_gam\_t2\_k20.rds" \# k = 20}
 \NormalTok{    )}
 
 \CommentTok{\# fitting a GP with two temporal dimensions}
