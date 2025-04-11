@@ -2,7 +2,7 @@
 # Split-half reliability of onset/offset estimates        #
 # Written by Ladislas Nalborczyk                          #
 # Contact: ladislas.nalborczyk@gmail.com                  #
-# Last updated on April 9, 2025                           #
+# Last updated on April 11, 2025                          #
 ###########################################################
 
 # importing R packages
