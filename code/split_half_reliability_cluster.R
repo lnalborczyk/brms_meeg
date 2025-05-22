@@ -2,8 +2,10 @@
 # Split-half reliability of onset/offset estimates        #
 # Written by Ladislas Nalborczyk                          #
 # Contact: ladislas.nalborczyk@gmail.com                  #
-# Last updated on April 11, 2025                          #
+# Last updated on May 8, 2025                             #
 ###########################################################
+
+options(error = function() {traceback(2); quit("no", status = 1, runLast = FALSE)})
 
 # importing R packages
 library(changepoint)
@@ -11,18 +13,20 @@ library(reticulate)
 library(tidybayes)
 library(dplyr)
 library(tidyr)
+library(glue)
 library(brms)
 
 # for setting up the cluster
 library(doParallel)
 library(foreach)
 
-# timing the simulations
-library(tictoc)
-tic()
+# retrieving the array ID
+args <- commandArgs(trailingOnly = TRUE)
+array_id <- as.numeric(args[1])
+cat("Running job for array_id =", array_id, "\n")
 
 # total number of total CPU cores available on the HPC node
-total_cores <- 12
+total_cores <- 16
 
 # number of cores per brms model
 cores_per_model <- 4
@@ -67,8 +71,8 @@ unique_participants <- unique(raw_df$participant)
 # getting the number of participants
 n_participants <- as.numeric(length(unique_participants) )
 
-# defining the number of splits
-n_splits <- 1000
+# defining the total number of splits (per node)
+n_splits <- 50
 
 # number of posterior samples to use to compute the posterior probability ratio
 # n_post_samples <- 1e4
@@ -93,20 +97,25 @@ post_prob_ratio_threshold <- 20
 alpha_level <- 0.05
 
 # for each simulation
-reliability_results <- tryCatch({foreach(
+reliability_results <- foreach(
     i = seq_len(n_splits), .combine = bind_rows,
     .packages = c("reticulate", "brms", "dplyr", "tidyr", "changepoint", "tidybayes")
     ) %dopar% {
+
+	tryCatch({
         
+	    # formatting the current split ID
+	    this_split_id <- sprintf("a%03d_s%03d", array_id, i)
+	    
         # importing Python modules locally
-        message_parallel("\nImporting Python modules...")
-        use_condaenv("r-reticulate3", conda = "~/miniforge3/bin/conda", required = TRUE)
+        # message_parallel("\nImporting Python modules...")
+        # use_condaenv("r-reticulate3", conda = "~/miniforge3/bin/conda", required = TRUE)
         
         # importing Python modules on the HPC cluster
-        # py_require(packages = c("numpy", "mne"), python_version = "3.12.0")
+        py_require(packages = c("numpy", "mne"), python_version = "3.12.0")
         np <- import("numpy")
         mne <- import("mne")
-        # mne$set_log_level("WARNING") # or "ERROR"
+        mne$set_log_level("WARNING") # or "ERROR"
         
         # printing progress
         message_parallel(sprintf("\nRunning simulation %d out of %d...", i, n_splits) )
@@ -147,7 +156,7 @@ reliability_results <- tryCatch({foreach(
             # using a subset of posterior samples
             # add_epred_draws(object = gam_split, ndraws = n_post_samples) |>
             # or using all posterior samples
-            add_epred_draws(object = gam_split)|>
+            add_epred_draws(object = gam_split) |>
             # converting to dataframe
             data.frame()|>
             group_by(time)|>
@@ -165,7 +174,8 @@ reliability_results <- tryCatch({foreach(
             data = prob_y_above_0 |> select(time, value = prob_ratio),
             threshold = post_prob_ratio_threshold
             ) |>
-            mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            # mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, i) ) |>
             select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
             mutate(method = "brms") |>
             pivot_longer(cols = onset:offset) |>
@@ -196,7 +206,8 @@ reliability_results <- tryCatch({foreach(
         # using the binary segmentation method to identify onsets and offsets
         res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 2)
         onset_offset_cpt <- data.frame(
-            split_id = formatC(x = i, width = 3, flag = 0),
+            # split_id = formatC(x = i, width = 3, flag = 0),
+            split_id = sprintf(fmt = "a%03d_s%03d", array_id, i),
             cluster_id = 1,
             onset = tests_results$time[res@cpts[1]],
             offset = tests_results$time[res@cpts[2]]
@@ -211,7 +222,8 @@ reliability_results <- tryCatch({foreach(
             data = tests_results|> mutate(pval = pval * (-1) )|> select(time, value = pval),
             threshold = -alpha_level
             ) |>
-            mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            # mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, i) ) |>
             select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
             mutate(method = "raw_p") |>
             pivot_longer(cols = onset:offset) |>
@@ -222,7 +234,8 @@ reliability_results <- tryCatch({foreach(
             data = tests_results |> mutate(pval = pval_bh * (-1) ) |> select(time, value = pval),
             threshold = -alpha_level
             ) |>
-            mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            # mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, i) ) |>
             select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
             mutate(method = "pval_bh") |>
             pivot_longer(cols = onset:offset) |>
@@ -233,7 +246,8 @@ reliability_results <- tryCatch({foreach(
             data = tests_results |> mutate(pval = pval_by * (-1) ) |> select(time, value = pval),
             threshold = -alpha_level
             ) |>
-            mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            # mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, i) ) |>
             select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
             mutate(method = "pval_by") |>
             pivot_longer(cols = onset:offset) |>
@@ -244,7 +258,8 @@ reliability_results <- tryCatch({foreach(
             data = tests_results |> mutate(pval = pval_holm * (-1) ) |> select(time, value = pval),
             threshold = -alpha_level
             ) |>
-            mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            # mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, i) ) |>
             select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
             mutate(method = "pval_holm") |>
             pivot_longer(cols = onset:offset) |>
@@ -269,7 +284,8 @@ reliability_results <- tryCatch({foreach(
             data = p_values_cluster_mass |> mutate(pval = pval*(-1) ) |> select(time, value = pval),
             threshold = -alpha_level
             ) |>
-            mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            # mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, i) ) |>
             select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
             mutate(method = "cluster_mass") |>
             pivot_longer(cols = onset:offset) |>
@@ -280,7 +296,8 @@ reliability_results <- tryCatch({foreach(
             data = p_values_tfce |> mutate(pval = pval*(-1) ) |> select(time, value = pval),
             threshold = -alpha_level
             ) |>
-            mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            # mutate(split_id = formatC(x = i, width = 3, flag = 0) ) |>
+            mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, i) ) |>
             select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
             mutate(method = "cluster_tfce") |>
             pivot_longer(cols = onset:offset) |>
@@ -296,18 +313,23 @@ reliability_results <- tryCatch({foreach(
         
         # returning the results
         temp_reliability_results
+
+	}, error = function(e){
+		
+		# returning a row with NA and error message
+		data.frame(sim_id = i, error = paste("Error:", e$message), stringAsFactors = FALSE)
+
+		})
         
     }
-    }, error = function(e) {
-        message("Error in foreach: ", e$message)
-    })
 
 # importing Python modules
-cat("\nSplits done. Importing Python modules...")
-use_condaenv("r-reticulate3", conda = "~/miniforge3/bin/conda", required = TRUE)
-# py_require(packages = c("numpy", "mne"), python_version = "3.12.0")
+# cat("\nSplits done. Importing Python modules...")
+# use_condaenv("r-reticulate3", conda = "~/miniforge3/bin/conda", required = TRUE)
+py_require(packages = c("numpy", "mne"), python_version = "3.12.0")
 np <- import("numpy")
 mne <- import("mne")
+mne$set_log_level("WARNING") # or "ERROR"
 
 # fitting the final GAM
 cat("\nNow fitting the model on the full dataset...")
@@ -329,9 +351,9 @@ cat("\nNumber of posterior samples in the full model:", ndraws(full_gam) )
 # computing the posterior probability
 prob_y_above_0 <- data.frame(time = unique(full_gam$data$time) ) |>
     # retrieving the posterior samples
-    # add_epred_draws(object = full_gam) |>
+    add_epred_draws(object = full_gam) |>
     # using a subset of posterior samples
-    add_epred_draws(object = full_gam, ndraws = n_post_samples) |>
+    # add_epred_draws(object = full_gam, ndraws = n_post_samples) |>
     # converting to dataframe
     data.frame() |>
     # computing mean posterior probability at the group level
@@ -339,10 +361,10 @@ prob_y_above_0 <- data.frame(time = unique(full_gam$data$time) ) |>
     summarise(m = mean(.epred > (0 + chance_level + full_sesoi) ) ) |>
     mutate(prob_ratio = m / (1 - m) ) |>
     # ensuring there is no 0 or +Inf values
-    # mutate(prob_ratio = ifelse(is.infinite(prob_ratio), ndraws(full_gam), prob_ratio) ) |>
-    # mutate(prob_ratio = ifelse(prob_ratio == 0, 1 / ndraws(full_gam), prob_ratio) ) |>
-    mutate(prob_ratio = ifelse(is.infinite(prob_ratio), n_post_samples, prob_ratio) ) |>
-    mutate(prob_ratio = ifelse(prob_ratio == 0, 1 / n_post_samples, prob_ratio) ) |>
+    mutate(prob_ratio = ifelse(is.infinite(prob_ratio), ndraws(full_gam), prob_ratio) ) |>
+    mutate(prob_ratio = ifelse(prob_ratio == 0, 1 / ndraws(full_gam), prob_ratio) ) |>
+    # mutate(prob_ratio = ifelse(is.infinite(prob_ratio), n_post_samples, prob_ratio) ) |>
+    # mutate(prob_ratio = ifelse(prob_ratio == 0, 1 / n_post_samples, prob_ratio) ) |>
     ungroup()
 
 # finding clusters
@@ -350,7 +372,8 @@ onset_offset_brms <- find_clusters(
     data = prob_y_above_0 |> select(time, value = prob_ratio),
     threshold = post_prob_ratio_threshold
     ) |>
-    mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    # mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, n_splits + 1) ) |>
     select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
     mutate(method = "brms") |>
     pivot_longer(cols = onset:offset) |>
@@ -388,7 +411,7 @@ tests_results <- summary_df |>
 res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 2)
 
 onset_offset_cpt <- data.frame(
-    split_id = formatC(x = n_splits+1, width = 3, flag = 0),
+    split_id = sprintf(fmt = "a%03d_s%03d", array_id, n_splits + 1),
     cluster_id = 1,
     onset = tests_results$time[res@cpts[1]],
     offset = tests_results$time[res@cpts[2]]
@@ -403,7 +426,8 @@ onset_offset_raw_p <- find_clusters(
     data = tests_results |> mutate(pval = pval * (-1) ) |> select(time, value = pval),
     threshold = -alpha_level
     ) |>
-    mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    # mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, n_splits + 1) ) |>
     select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
     mutate(method = "raw_p") |>
     pivot_longer(cols = onset:offset) |>
@@ -414,7 +438,8 @@ onset_offset_pval_bh <- find_clusters(
     data = tests_results |> mutate(pval = pval_bh * (-1) ) |> select(time, value = pval),
     threshold = -alpha_level
     ) |>
-    mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    # mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, n_splits + 1) ) |>
     select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
     mutate(method = "pval_bh") |>
     pivot_longer(cols = onset:offset) |>
@@ -425,7 +450,8 @@ onset_offset_pval_by <- find_clusters(
     data = tests_results |> mutate(pval = pval_by * (-1) ) |> select(time, value = pval),
     threshold = -alpha_level
     ) |>
-    mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    # mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, n_splits + 1) ) |>
     select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
     mutate(method = "pval_by") |>
     pivot_longer(cols = onset:offset) |>
@@ -436,7 +462,8 @@ onset_offset_pval_holm <- find_clusters(
     data = tests_results |> mutate(pval = pval_holm * (-1) ) |> select(time, value = pval),
     threshold = -alpha_level
     ) |>
-    mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    # mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, n_splits + 1) ) |>
     select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
     mutate(method = "pval_holm") |>
     pivot_longer(cols = onset:offset) |>
@@ -461,7 +488,8 @@ onset_offset_cluster_mass <- find_clusters(
     data = p_values_cluster_mass |> mutate(pval = pval*(-1) ) |> select(time, value = pval),
     threshold = -alpha_level
     ) |>
-    mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    # mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, n_splits + 1) ) |>
     select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
     mutate(method = "cluster_mass") |>
     pivot_longer(cols = onset:offset) |>
@@ -472,7 +500,8 @@ onset_offset_cluster_tfce <- find_clusters(
     data = p_values_tfce |> mutate(pval = pval*(-1) ) |> select(time, value = pval),
     threshold = -alpha_level
     ) |>
-    mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    # mutate(split_id = formatC(x = n_splits+1, width = 3, flag = 0) ) |>
+    mutate(split_id = sprintf(fmt = "a%03d_s%03d", array_id, n_splits + 1) ) |>
     select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
     mutate(method = "cluster_tfce") |>
     pivot_longer(cols = onset:offset) |>
@@ -490,10 +519,7 @@ temp_reliability_results <- bind_rows(
 reliability_results <- bind_rows(reliability_results, temp_reliability_results)
 
 # saving the results
-saveRDS(object = reliability_results, file = "./results/reliability_results_1000splits.rds")
+saveRDS(object = reliability_results, file = glue::glue("./results/reliability_results_array_{array_id}.rds") )
 
 # stopping the cluster
 stopCluster(cl)
-
-# timing the simulations
-toc()

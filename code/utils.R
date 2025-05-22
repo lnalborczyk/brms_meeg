@@ -104,6 +104,14 @@ find_clusters <- function (data, threshold = 10, above_threshold = TRUE) {
             ) |>
         data.frame()
     
+    if (nrow(clusters) == 0) {
+        clusters <- data.frame(
+            cluster_id = NA_integer_,
+            cluster_onset = NA_real_,
+            cluster_offset = NA_real_
+            )
+        }
+    
     return (clusters)
     
 }

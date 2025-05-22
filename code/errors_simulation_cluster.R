@@ -2,8 +2,10 @@
 # Monte-Carlo simulation of onset/offset error properties #
 # Written by Ladislas Nalborczyk                          #
 # Contact: ladislas.nalborczyk@gmail.com                  #
-# Last updated on April 9, 2025                           #
+# Last updated on May 9, 2025                             #
 ###########################################################
+
+options(error = function() {traceback(2); quit("no", status = 1, runLast = FALSE)})
 
 # importing R packages
 library(changepoint)
@@ -11,18 +13,20 @@ library(reticulate)
 library(tidybayes)
 library(dplyr)
 library(tidyr)
+library(glue)
 library(brms)
 
 # for setting up the cluster
 library(doParallel)
 library(foreach)
 
-# timing the simulations
-library(tictoc)
-tic()
+# retrieving the array ID
+args <- commandArgs(trailingOnly = TRUE)
+array_id <- as.numeric(args[1])
+cat("Running job for array_id =", array_id, "\n")
 
 # total number of total CPU cores available on the HPC node
-total_cores <- 12
+total_cores <- 16
 
 # number of cores per brms model
 cores_per_model <- 4
@@ -34,20 +38,20 @@ n_parallel <- total_cores / cores_per_model
 cl <- makeCluster(n_parallel)
 registerDoParallel(cl)
 
+# importing home-made helper functions
+source("code/utils.R")
+
 # importing R version of Matlab code from Yeung et al. (2004)
 source("code/eeg_noise.R")
 
 # importing the ERP template with true onset = 160 ms, F = 81, and max at F = 126
 source("code/erp_template.R")
 
-# importing home-made helper functions
-source("code/utils.R")
-
 # to use with the eeg_noise function
-meanpower <- unlist(read.table("code/meanpower.txt") )
+# meanpower <- unlist(read.table("code/meanpower.txt") )
 
 # defining the total number of simulations to be performed
-nsims <- 1000
+n_sims <- 8
 
 # defining simulation parameters
 n_trials <- 50 # number of trials
@@ -67,13 +71,16 @@ significance_thresholds <- c(0.05, 0.01, 0.005, 0.001)
 threshold_values <- c(1, 3, 6, 10, 20, 50, 100)
 
 # initialising empty simulation results
-sim_results <- data.frame()
+# sim_results <- data.frame()
 
 # for each simulation
-sim_results_list <- foreach(
-    i = 1:nsims,
+sim_results <- foreach(
+    i = seq_len(n_sims), .combine = bind_rows,
     .packages = c("brms", "dplyr", "tidyr", "tidybayes", "changepoint", "reticulate")
     ) %dopar% {
+        
+        # formatting the current sim ID
+        this_sim_id <- sprintf("a%03d_s%03d", array_id, i)
         
         # importing Python modules locally
         message_parallel("\nImporting Python modules...")
@@ -81,12 +88,12 @@ sim_results_list <- foreach(
         
         # importing Python modules on the HPC cluster
         # py_require(packages = c("numpy", "mne"), python_version = "3.12.0")
-        np <- import("numpy")
-        mne <- import("mne")
+        # np <- import("numpy")
+        # mne <- import("mne")
         # mne$set_log_level("WARNING") # or "ERROR"
         
         # printing progress
-        message_parallel(sprintf("\nRunning simulation %d out of %d...", i, nsims) )
+        message_parallel(sprintf("\nRunning simulation %d out of %d...", i, n_sims) )
         
         # simulating some EEG data
         raw_df <- generate_data(
@@ -115,8 +122,8 @@ sim_results_list <- foreach(
         meta_gam <- brm(
             # using by-participant SD of ERPs across trials
             eeg_mean | se(eeg_sd) ~
-                condition + s(time, bs = "cr", k = 20, by = condition) +
-                (1 | participant),
+                condition + (1 + condition | participant) +
+                s(time, bs = "cr", k = 20, by = condition),
             data = summary_df,
             family = gaussian(),
             warmup = 2000,
@@ -158,7 +165,8 @@ sim_results_list <- foreach(
                 data = prob_y_above_0 |> select(time, value = prob_ratio),
                 threshold = threshold
                 ) |>
-                mutate(simulation_id = formatC(x = i, width = 3, flag = 0) ) |>
+                # mutate(simulation_id = formatC(x = i, width = 3, flag = 0) ) |>
+                mutate(simulation_id = sprintf(fmt = "a%03d_s%03d", array_id, i) ) |>
                 select(simulation_id, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
                 mutate(method = "brms") |>
                 pivot_longer(cols = onset:offset) |>
@@ -203,7 +211,8 @@ sim_results_list <- foreach(
             res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 2)
             
             onset_offset_cpt <- data.frame(
-                simulation_id = formatC(x = i, width = 3, flag = 0),
+                # simulation_id = formatC(x = i, width = 3, flag = 0),
+                simulation_id = sprintf(fmt = "a%03d_s%03d", array_id, i),
                 threshold = alpha_level,
                 cluster_id = 1,
                 onset = tests_results$time[res@cpts[1]],
@@ -220,7 +229,8 @@ sim_results_list <- foreach(
                 threshold = -alpha_level
                 ) |>
                 mutate(
-                    simulation_id = formatC(x = i, width = 3, flag = 0),
+                    # simulation_id = formatC(x = i, width = 3, flag = 0),
+                    simulation_id = sprintf(fmt = "a%03d_s%03d", array_id, i),
                     threshold = alpha_level
                     ) |>
                 select(simulation_id, threshold, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
@@ -234,7 +244,8 @@ sim_results_list <- foreach(
                 threshold = -alpha_level
                 ) |>
                 mutate(
-                    simulation_id = formatC(x = i, width = 3, flag = 0),
+                    # simulation_id = formatC(x = i, width = 3, flag = 0),
+                    simulation_id = sprintf(fmt = "a%03d_s%03d", array_id, i),
                     threshold = alpha_level
                     ) |>
                 select(simulation_id, threshold, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
@@ -248,7 +259,8 @@ sim_results_list <- foreach(
                 threshold = -alpha_level
                 ) |>
                 mutate(
-                    simulation_id = formatC(x = i, width = 3, flag = 0),
+                    # simulation_id = formatC(x = i, width = 3, flag = 0),
+                    simulation_id = sprintf(fmt = "a%03d_s%03d", array_id, i),
                     threshold = alpha_level
                     ) |>
                 select(simulation_id, threshold, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
@@ -262,7 +274,8 @@ sim_results_list <- foreach(
                 threshold = -alpha_level
                 ) |>
                 mutate(
-                    simulation_id = formatC(x = i, width = 3, flag = 0),
+                    # simulation_id = formatC(x = i, width = 3, flag = 0),
+                    simulation_id = sprintf(fmt = "a%03d_s%03d", array_id, i),
                     threshold = alpha_level
                     ) |>
                 select(simulation_id, threshold, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
@@ -290,7 +303,8 @@ sim_results_list <- foreach(
                 threshold = -alpha_level
                 ) |>
                 mutate(
-                    simulation_id = formatC(x = i, width = 3, flag = 0),
+                    # simulation_id = formatC(x = i, width = 3, flag = 0),
+                    simulation_id = sprintf(fmt = "a%03d_s%03d", array_id, i),
                     threshold = alpha_level
                     ) |>
                 select(simulation_id, threshold, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
@@ -304,7 +318,8 @@ sim_results_list <- foreach(
                 threshold = -alpha_level
                 ) |>
                 mutate(
-                    simulation_id = formatC(x = i, width = 3, flag = 0),
+                    # simulation_id = formatC(x = i, width = 3, flag = 0),
+                    simulation_id = sprintf(fmt = "a%03d_s%03d", array_id, i),
                     threshold = alpha_level
                     ) |>
                 select(simulation_id, threshold, cluster_id, onset = cluster_onset, offset = cluster_offset) |>
@@ -333,15 +348,8 @@ sim_results_list <- foreach(
     
     }
 
-# binding all simulation results
-sim_results <- bind_rows(sim_results_list)
-
 # saving the simulation results
-# saveRDS(object = sim_results, file = "./results/errors_results_cluster.rds")
-saveRDS(object = sim_results, file = "./results/errors_results_1000sims.rds")
+saveRDS(object = sim_results, file = glue::glue("./results/errors_results_array_{array_id}.rds") )
 
 # stopping the cluster
 stopCluster(cl)
-
-# timing the simulations
-toc()
