@@ -2,14 +2,51 @@ if FORMAT ~= "latex" then
   return 
 end
 
+local utilsapa = require("utilsapa")
+
+local noteword = "Note"
+
+-- from quarto-cli/src/resources/pandoc/datadir/init.lua
+-- global quarto params
+local paramsJson = quarto.base64.decode(os.getenv("QUARTO_FILTER_PARAMS"))
+local quartoParams = quarto.json.decode(paramsJson)
+local function param(name, default)
+  -- get name from quartoParams, if possible
+  local value = quartoParams[name]
+  if value == nil then
+    -- get name from quartoParams.language, if possible
+    if quartoParams.language then
+      value = quartoParams.language[name]
+    end
+    -- If still nil, then assign default
+    if value == nil then
+      value = default
+    end
+  end
+  return value
+end
+
+
 -- Is the .pdf in journal mode?
 local journalmode = false
 local manuscriptmode = true
+local noteprefix = "\\noindent \\emph{Note.} "
+local beforenote = ""
 local getmode = function(meta)
   local documentmode = pandoc.utils.stringify(meta["documentmode"])
   journalmode = documentmode == "jou"
   manuscriptmode = documentmode == "man"
+    -- Find word for "note"
+  if not meta.language["figure-table-note"] then
+    if param("callout-note-title") then
+      meta.language["figure-table-note"] = param("callout-note-title")
+    end
+  end
+  noteprefix = "\\noindent \\emph{" .. meta.language["figure-table-note"] .. ".} "
+  
 end
+
+
 
 -- Split string function
 function string:split(delimiter)
@@ -25,12 +62,20 @@ function string:split(delimiter)
 end
 
 local processfloat = function(float)
+  if float.attributes["disable-apaquarto-processing"] then
+    
+    if not (float.attributes["disable-apaquarto-processing"] == "false") then
+      
+      return float
+    end
+  end
   -- default float position
   local floatposition = "[!htbp]"
   local p = {}
+  local apanotedivs = pandoc.Div(pandoc.Blocks{})
   if float.attributes["fig-pos"] then
     if pandoc.utils.stringify(float.attributes["fig-pos"]) == "false" then
-      floatposition = ""
+      floatposition = "[!htbp]"
     else
       floatposition = "[" .. float.attributes["fig-pos"] .. "]"
     end
@@ -40,7 +85,6 @@ local processfloat = function(float)
     -- Default table environment
     local latextableenv = "table"
     -- Manuscript spacing before note needs adjustment ment
-    local beforenote = ""
     if manuscriptmode then
       beforenote = "\\vspace{-20pt}\n"
       if float.attributes["beforenotespace"] then
@@ -53,6 +97,9 @@ local processfloat = function(float)
     if journalmode then
       -- No spacing in before note in journalmode
       beforenote = ""
+      if float.attributes["beforenotespace"] then
+        beforenote = "\\vspace{" .. float.attributes["beforenotespace"] .. "}\n"
+      end
       -- Table environment in journal mode
       latextableenv = "ThreePartTable"
     end
@@ -71,10 +118,8 @@ local processfloat = function(float)
     
     -- Add note
     if float.attributes["apa-note"] then
-      p = pandoc.Span({
-        pandoc.RawInline("latex", beforenote .. "\\noindent \\emph{Note.} "),
-        float.attributes["apa-note"]
-      })
+        note_prefix = pandoc.Span(pandoc.RawInline("latex", beforenote .. noteprefix))
+        apanotedivs =  utilsapa.make_note(float.attributes["apa-note"], note_prefix)
     end
       
       local captionsubspan = pandoc.Span({
@@ -109,18 +154,21 @@ local processfloat = function(float)
       local returnblock = pandoc.Div({
         pandoc.RawBlock("latex", "\\begin{" .. latextableenv .. "}"),
         captionspan,
-        float.content,
-        p,
-        pandoc.RawBlock("latex", "\\end{" .. latextableenv .. "}")
+        float.content
+        
       }
       )
+      returnblock.content:extend({apanotedivs})
+
+      
+      returnblock.content:extend({pandoc.RawBlock("latex", "\\end{" .. latextableenv .. "}")})
       
       if journalmode then
         
         returnblock = pandoc.Div({
           pandoc.RawBlock("latex", "\\begin{" .. latextableenv .. "}"),
           float.__quarto_custom_node,
-          p,
+          apanotedivs,
           pandoc.RawBlock("latex", "\\end{" .. latextableenv .. "}")
         })
     
@@ -141,6 +189,10 @@ local processfloat = function(float)
           hasnote = true
           apanote = img.attributes["apa-note"] 
         end
+      
+      if img.attributes["beforenotespace"] then
+        beforenote = "\\vspace{" .. img.attributes["beforenotespace"] .. "}\n"
+      end
        if img.attributes["apa-twocolumn"] then
          if img.attributes["apa-twocolumn"] == "true" then
            twocolumn = true
@@ -156,10 +208,10 @@ local processfloat = function(float)
     -- Make note
     if hasnote or twocolumn then
       if hasnote then
-        p = pandoc.Span(pandoc.RawInline("latex", "\\noindent \\emph{Note.} "))
-        local apanotestr = quarto.utils.string_to_inlines(apanote)
-        for i, v in ipairs(apanotestr) do
-          p.content:insert(v)
+        -- Add note
+        if float.attributes["apa-note"] then
+            note_prefix = pandoc.Span(pandoc.RawInline("latex", beforenote .. noteprefix))
+           apanotedivs =  utilsapa.make_note(float.attributes["apa-note"], note_prefix)
         end
       end
     
@@ -186,7 +238,7 @@ local processfloat = function(float)
         pandoc.RawBlock("latex", "\\begin{" .. latexenv .. "}" .. floatposition),
         captionspan,
         float.content,
-        p,
+        apanotedivs,
         pandoc.RawBlock("latex", "\\end{" .. latexenv .. "}")
       })
   
@@ -195,6 +247,7 @@ local processfloat = function(float)
     
   end
 end
+
 
 return {
 { Meta = getmode },

@@ -6,15 +6,15 @@ Time-resolved electrophysiological measurements such as those obtained through m
 
 ## Main simulation results
 
-The figure below shows a summary of the simulation results, revealing that the proposed approach (`BGAM`) has the lowest median error and variance for both the onset and offset estimates.
+The figure below shows a summary of the simulation results, revealing that the proposed approach (`BGAM`) has the lowest average error (bias) for both the onset and offset estimates.
 
-![MEG data](figures/simulation_results_mae_variance.png)
+![MEG data](manuscript_files/figure-pdf/fig-simulation-results-1.png)
 
 ## Application to actual MEG data (time-resolved decoding)
 
-The figure below shows the group-level average decoding performance through time with onset and offset estimates for each method. Overall, this figure shows that the `Raw p-value` method is extremely lenient, considering that decoding performance is above chance before the onset of the stimulus (false positive) and until the end of the trial. The `Change point`, `TFCE`, and `Holm` methods are the most conservative methods, identifying a time window from approximately +60ms to +550ms. The `FDR BH95`, `FDR BY01`, `Cluster mass`, and `BGAM` methods produced somewhat similar estimates of onset and offset, from approximately +60ms to +650ms.
+The figure below shows the group-level average decoding performance through time with onset and offset estimates for each method. Overall, this figure shows that both the `Raw p-value` and `FDR BH95` methods are extremely lenient, identifying clusters of above-chance decoding accuracy before the onset of the stimulus (false positive) and until the end of the trial. The `Change point` method seems to be the most conservative one, identifying a single cluster spanning from approximately +60ms to +450ms. The `Holm`, `Cluster mass`, `TFCE`, and `BGAM` methods produce similar estimates of onset and offset, ranging from approximately +60ms to +650ms (considering only the first and last identified timesteps), although the `BGAM` method seems to result in fewer clusters.
 
-![MEG data](figures/meg_decoding_results_all_methods.png)
+![MEG data](manuscript_files/figure-pdf/fig-onset-offset-1.png)
 
 ## Usage
 

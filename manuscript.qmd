@@ -21,10 +21,11 @@ author:
 author-note:
   disclosures:
     conflict-of-interest: "The authors have no conflicts of interest to disclose."
-abstract: "Time-resolved electrophysiological measurements such as those obtained through magneto- or electro-encephalography (M/EEG) offer a unique window onto the neural activity underlying cognitive processes. Researchers are often interested in determining whether and when these signals differ across experimental conditions or participant groups. The conventional approach involves mass-univariate statistical testing across time and space, followed by corrections for multiple comparisons such as cluster-based inference. While effective for controlling error rates at the cluster-level, cluster-based inference comes with a significant limitation: by shifting the focus of inference from individual time points to clusters, it prevents drawing conclusions about the precise onset or offset of observed effects. Here, we introduce a *model-based* approach for analysing M/EEG timeseries such as event-related potentials (ERPs) or decoding performance over time. Our approach leverages Bayesian generalised additive multilevel models, providing posterior probabilities that an effect is above zero (or above chance) at each time point, while naturally accounting for temporal dependencies and between-subject variability. Using both simulated and actual M/EEG datasets, we demonstrate that this approach substantially outperforms conventional methods in estimating the onset and offset of neural effects, yielding more precise and reliable results. We provide an R package implementing the method and describe how it can be integrated into M/EEG analysis pipelines using MNE-Python."
-keywords: [EEG, MEG, cluster-based inference, simulation, multiple comparisons, generalised additive models, mixed-effects models, multilevel models, Bayesian statistics, brms]
+abstract: "Time-resolved electrophysiological measurements such as those obtained through magneto- and electroencephalography (M/EEG) offer a unique window onto the neural activity underlying cognitive processes. Researchers are often interested in determining whether and when these signals differ across experimental conditions or participant groups. The conventional approach involves mass-univariate statistical testing across time and space followed by corrections for multiple comparisons or some form of cluster-based inference. While effective for controlling error rates at the cluster-level, cluster-based inference comes with a significant limitation: by shifting the focus of inference from individual time points to clusters, it prevents drawing conclusions about the precise onset or offset of observed effects. Here, we present a *model-based* alternative for analysing M/EEG timeseries, such as event-related potentials or time-resolved decoding accuracy. Our approach leverages Bayesian generalised additive multilevel models, providing posterior odds that an effect exceeds zero (or chance) at each time point, while naturally accounting for temporal dependencies and between-subject variability. Using both simulated and empirical M/EEG datasets, we show that this approach substantially outperforms conventional methods in estimating the onset and offset of neural effects, yielding more precise and reliable estimates. We provide an open-source R package implementing the method and describe how it can be integrated into M/EEG analysis pipelines using MNE-Python."
+keywords: [EEG, MEG, cluster-based inference, multiple comparisons, generalised additive models, mixed-effects models, multilevel models, Bayesian statistics, brms]
 floatsintext: true
 numbered-lines: true
+word-count: true
 bibliography:
   - meeg_modelling.bib
   - grateful-refs.bib
@@ -40,7 +41,8 @@ draftfirst: false
 draftall: false
 a4paper: true
 donotrepeattitle: true
-suppress-title-introduction: true
+number-sections: true
+number-depth: 3
 lang: en
 toc: true
 language:
@@ -53,6 +55,7 @@ format:
   apaquarto-pdf:
     latex-engine: xelatex
     documentmode: doc # man, jou, doc, stu
+    # number_sections: true
     keep-tex: true
     include-in-header:
       - text: |
@@ -72,6 +75,7 @@ library(MetBrewer)
 library(tidytext)
 library(grateful)
 library(ggrepel)
+library(ggpubr)
 library(scales)
 library(pakret)
 library(scico)
@@ -84,7 +88,7 @@ library(gt)
 knitr::opts_chunk$set(
     cache = TRUE,
     eval = TRUE,
-    echo = TRUE,
+    echo = FALSE,
     warning = FALSE,
     message = FALSE,
     fig.align = "center",
@@ -95,9 +99,6 @@ knitr::opts_chunk$set(
     dpi = 300
     )
 
-# disabling hyperlinks
-# options(cli.hyperlink = FALSE)
-
 # setting a default ggplot2 theme
 theme_set(theme_bw(base_size = 10, base_family = "Open Sans") )
 
@@ -105,21 +106,24 @@ theme_set(theme_bw(base_size = 10, base_family = "Open Sans") )
 pkrt_set(pkg = "the `R` package `:pkg` v :ver [:ref]")
 ```
 
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
 # Introduction
 
 ## Problem statement
 
 Understanding the temporal dynamics of cognitive processes requires methods that can capture fast-changing neural activity with high temporal resolution. Magnetoencephalography and electroencephalography (M/EEG) are two such methods, widely used in cognitive neuroscience for their ability to track brain activity at the millisecond scale. These techniques provide rich time series data that reflect how neural responses unfold in response to stimuli or tasks. A central goal in many M/EEG studies is to determine whether, when, and where neural responses differ across experimental conditions or groups.
 
-The conventional approach involves mass-univariate statistical testing through time and/or space followed by some form of correction for multiple comparisons with the goal of maintaining the familywise error rate (FWER) or the false discovery rate (FDR) at the nominal level (e.g., 5%). Cluster-based inference is the most common way of achieving this sort of error control in the M/EEG literature, being the recommended approach in several software programs [e.g., `EEGlab`, @delorme2004; `MNE-Python`, @gramfort2013]. While effective for controlling error rates, cluster-based inference comes with a significant limitation: by shifting the focus of inference from individual datapoints (e.g., timesteps, sensors, voxels) to clusters, it prevents the ability to draw precise conclusions about the spatiotemporal localisation of such effects [@maris2007; @sassenhagen2019]. As pointed out by @maris2007: "there is a conflict between this interest in localized effects and our choice for a global null hypothesis: by controlling the FA [false alarm] rate under this global null hypothesis, one cannot quantify the uncertainty in the spatiotemporal localization of the effect". Even worse, @rosenblatt2018 note that cluster-based inference suffers from low spatial resolution: "Since discovering a cluster means that 'there exists at least one voxel with an evoked response in the cluster', and not that 'all the voxels in the cluster have an evoked response', it follows that the larger the detected cluster, the less information we have on the location of the activation." As a consequence, cluster-based inference is expected to perform poorly for localising the onset of M/EEG effects; a property that was later demonstrated in simulation studies [e.g., @rousselet_using_2025; @sassenhagen2019].
+The conventional approach involves mass-univariate statistical testing through time and/or space followed by some form of correction for multiple comparisons with the goal of maintaining the familywise error rate (FWER) or the false discovery rate (FDR) at the nominal level (e.g., 5%). Cluster-based inference is the most common way of achieving this sort of error control in the M/EEG literature, being the recommended approach in several software programs [e.g., `EEGlab`, @delorme2004; `MNE-Python`, @gramfort2013]. While effective for controlling error rates, cluster-based inference comes with a significant limitation: by shifting the focus of inference from individual datapoints (e.g., timesteps, sensors, voxels) to clusters, it prevents the ability to draw precise conclusions about the spatiotemporal localisation of such effects [@maris2007; @sassenhagen2019]. As pointed out by @maris2007: "there is a conflict between this interest in localized effects and our choice for a global null hypothesis: by controlling the FA [false alarm] rate under this global null hypothesis, one cannot quantify the uncertainty in the spatiotemporal localization of the effect". Even worse, @rosenblatt2018 note that cluster-based inference suffers from low spatial resolution: "Since discovering a cluster means that 'there exists at least one voxel with an evoked response in the cluster', and not that 'all the voxels in the cluster have an evoked response', it follows that the larger the detected cluster, the less information we have on the location of the activation." As a consequence, cluster-based inference is expected to perform poorly for identifying the onset of M/EEG effects; a property that was later demonstrated in simulation studies [e.g., @rousselet_using_2025; @sassenhagen2019].
 
-To overcome the limitations of cluster-based inference, we introduce a novel *model-based* approach for precisely localising M/EEG effects in time, space, and other dimensions. The proposed approach, based on Bayesian generalised additive multilevel models, allows quantifying the posterior probability of effects being above chance at the level of timesteps, sensors, voxels, etc, while naturally taking into account spatiotemporal dependencies present in M/EEG data. We compare the performance of the proposed approach to well-established alternative methods using both simulated and actual M/EEG data and show that it significantly outperforms alternative methods in estimating the onset and offset of M/EEG effects.
+To overcome the limitations of cluster-based inference, we introduce a novel *model-based* approach for precisely localising M/EEG effects in time, space, and other dimensions. The proposed approach, based on Bayesian generalised additive multilevel models, allows quantifying the posterior odds of effects being above chance at the level of timesteps, sensors, voxels, etc, while naturally taking into account spatiotemporal dependencies present in M/EEG data. We compare the performance of the proposed approach to well-established alternative methods using both simulated and actual M/EEG data and show that it significantly outperforms alternative methods in estimating the onset and offset of M/EEG effects.
 
 ## Statistical errors and cluster-based inference
 
-The issues with multiple comparisons represent a common and well-recognised danger in neuroimaging and M/EEG research, where the collected data allows for a multitude of potential hypothesis tests and is characterised by complex structures of spatiotemporal dependencies. The probability of obtaining at least one false positive in an ensemble (family) of $m$ tests (i.e., the FWER) is computed as $1-\left(1-\alpha\right)^{m}$ (for $m=10$ tests and $\alpha=0.05$, it is approximately equal to $0.4$). Different methods exist to control the FWER (i.e., bring it back to $\alpha$). Most methods apply a simple correction to series of $p$-values issued from univariate statistical tests (e.g., t-tests). For instance, the Bonferroni correction [@dunn1961] consists in setting the significance threshold to $\alpha/m$, or equivalently, multiplying the $p$-values by $m$ and using the standard $\alpha$ significance threshold. This method is generally overconservative (i.e., under-powered) as it assumes statistical independence of the tests, an assumption that is clearly violated in the context of M/EEG timeseries characterised by massive spatiotemporal dependencies. Some alternative methods aims at controlling the FDR, defined as the proportion of false positive *among positive tests* [e.g., @benjamini1995; @benjamini2001]. However, a major limitation of both types of corrections is that they do not take into account the spatial and temporal information contained in M/EEG data.
+The issues with multiple comparisons represent a common and well-recognised danger in neuroimaging and M/EEG research, where the collected data allows for a multitude of potential hypothesis tests and is characterised by complex structures of spatiotemporal dependencies. The probability of obtaining at least one false positive in an ensemble (family) of $m$ tests (i.e., the FWER) is computed as $1-\left(1-\alpha\right)^{m}$ (for $m=10$ independent tests and $\alpha=0.05$, it is approximately equal to $0.4$). Different methods exist to control the FWER, that is, to bring it back to $\alpha$. Most methods apply a simple correction to series of $p$-values issued from univariate statistical tests (e.g., t-tests). For instance, the Bonferroni correction [@dunn1961] consists in setting the significance threshold to $\alpha/m$, or equivalently, multiplying the $p$-values by $m$ and using the standard $\alpha$ significance threshold. This method is generally overconservative (i.e., under-powered) as it assumes statistical independence of the tests, an assumption that is clearly violated in the context of M/EEG timeseries characterised by massive spatiotemporal dependencies. Some alternative methods aims at controlling the FDR, defined as the proportion of false positive *among positive tests* [e.g., @benjamini1995; @benjamini2001]. However, a major limitation of both types of corrections is that they do not take into account the spatial and temporal information contained in M/EEG data.
 
-A popular technique to account for spatiotemporal dependencies while controlling the FWER is cluster-based inference [@bullmore1999; @maris2007]. A typical cluster-based inference consists of two successive steps [for more details on cluster-based inference, see for instance @frossard2022; @maris2011; @maris2007; @sassenhagen2019]. First, clusters are defined as sets of contiguous timesteps, sensors, voxels, etc, whose activity, summarised by some test statistic (e.g., a $t$-value), exceeds a predefined threshold (e.g., the 95th percentile of the parametric null distribution). Clusters are then characterised by their height (i.e., maximal value), extent (number of constituent elements), or some combination of both, for instance by summing the statistics within a cluster, an approach referred to as "cluster mass" [@maris2007; @pernet2015]. Then, the null hypothesis is tested by computing a $p$-value for each identified cluster by comparing its mass with the null distribution of cluster masses (obtained via permutation). As alluded previously, a significant cluster is a cluster which contains *at least one* significant time-point. As such, it would be incorrect to conclude, for instance, that the timestep of a significant cluster is the first moment at which some conditions differ [@frossard2022; @sassenhagen2019]. In other words, because the inference is performed at the second step (i.e., once clusters have been formed), no conclusion can be made about individual datapoints (e.g., timesteps, sensors, etc).
+A popular technique to account for spatiotemporal dependencies while controlling the FWER is cluster-based inference [@bullmore1999; @maris2007]. A typical cluster-based inference consists of two successive steps [for more details on cluster-based inference, see for instance @frossard2022; @maris2011; @maris2007; @sassenhagen2019]. First, clusters are defined as sets of contiguous timesteps, sensors, voxels, etc, whose activity, summarised by some test statistic (e.g., a $t$-value), exceeds a predefined threshold (e.g., the 95th percentile of the parametric null distribution). Clusters are then characterised by their height (i.e., maximal value), extent (number of constituent elements), or some combination of both, for instance by summing the statistics within a cluster, an approach referred to as "cluster mass" [@maris2007; @pernet2015]. Then, the null hypothesis is tested by computing a $p$-value for each identified cluster by comparing its mass with the null distribution of cluster masses (obtained via permutation). As alluded previously, a significant cluster is a cluster which contains *at least one* significant time-point. As such, it would be incorrect to conclude, for instance, that the timestep of a significant cluster is the first moment at which some conditions differ [@frossard2022; @sassenhagen2019]. Because the inference is performed at the second step (i.e., once clusters have been formed), no conclusion can be made about individual datapoints (e.g., timesteps, sensors, etc).
 
 As different cluster-forming thresholds lead to clusters with different spatial or temporal extent, this initial threshold modulates the sensitivity of the subsequent permutation test. The threshold-free cluster enhancement (TFCE) method was introduced by @smith2009 to overcome this choice of an arbitrary threshold. In brief, the TFCE method works as follows. Instead of picking an arbitrary cluster-forming threshold (e.g., $t=2$), the methods consist in trying all (or many) possible thresholds in a given range and checking whether a given datapoint (e.g., timestep, sensor, voxel) belongs to a significant cluster under any of the set of thresholds. Then, instead of using cluster mass, one uses a weighted average between the cluster extend ($e$, how broad is the cluster, that is, how many connected samples it contains) and the cluster height ($h$, how high is the cluster, that is, how large is the test statistic). The TFCE score at each timestep $t$ is given by:
 
@@ -127,7 +131,7 @@ $$
 \text{TFCE(t)} = \int_{h=h_{0}}^{h=h_{t}} e(h)^{E} h^{H} \mathrm{d}h
 $$
 
-where $h_{0}$ is typically $0$ and parameters $E$ and $H$ are set a priori (typically to 0.5 and 2, respectively) and control the influence of the extend and height on the TFCE. Note that in practice, this integral is approximated by a sum over small $h$ increments. Then, a *p*-value for each timestep $t$ is computed by comparing its TFCE with the null distribution of TFCE values (obtained via permutation). For each permuted signal, we keep the maximal value over the whole signal for the null distribution of the TFCE. The TFCE combined with permutation (assuming a large enough number of permutations) has been shown to provide accurate FWER control [e.g., @pernet2015]. However, further simulation work showed that cluster-based methods (including TFCE) perform poorly in localising the onset of M/EEG effects [e.g., @rousselet_using_2025; @sassenhagen2019].
+where $h_{0}$ is typically $0$ and parameters $E$ and $H$ are set a priori (typically to 0.5 and 2, respectively) and control the influence of the extend and height on the TFCE. In practice, this integral is approximated by a sum over small $h$ increments. Then, a *p*-value for each timestep $t$ is computed by comparing its TFCE with the null distribution of TFCE values (obtained via permutation). For each permuted signal, we keep the maximal value over the whole signal for the null distribution of the TFCE. The TFCE combined with permutation (assuming a large enough number of permutations) has been shown to provide accurate FWER control [e.g., @pernet2015]. However, further simulation work showed that cluster-based methods (including TFCE) perform poorly in localising the onset of M/EEG effects [e.g., @rousselet_using_2025; @sassenhagen2019].
 
 To sum up, the main limitation of cluster-based inference is that it allows for inference at the cluster level only, not allowing inference at the level of timesteps, sensors, etc. As a consequence, it does not allow inferring the precise spatial and temporal localisation of effects. In the following, we briefly review previous modelling work of M/EEG data. Then, we provide a short introduction to generalised additive models (GAMs) to illustrate how these models can be used to precisely estimate the onset and offset of M/EEG effects.
 
@@ -141,31 +145,17 @@ M/EEG recordings at the scalp measure activity stemming from various parts of th
 
 -->
 
-Scalp-recorded M/EEG signals capture neural activity originating from various brain regions and are often contaminated by artifacts unrelated to the cognitive processes under investigation. Consequently, analysing M/EEG data necessitates methods that can disentangle task-relevant neural signals from extraneous "noise." A widely adopted technique for this purpose is the estimation of event-related potentials (ERPs), which are stereotyped electrophysiological responses time-locked to specific sensory, cognitive, or motor events. Typically, ERPs are derived by averaging EEG or MEG epochs across multiple trials aligned to the event of interest (e.g., stimulus onset), thereby enhancing the signal-to-noise ratio by attenuating non-time-locked activity. However, this averaging approach has notable limitations: it assumes consistent latency and amplitude across trials and is primarily suited for simple categorical designs. Such assumptions may not hold in more complex experimental paradigms, potentially leading to suboptimal ERP estimations.
+Scalp-recorded M/EEG signals capture neural activity originating from various brain regions and are often contaminated by artifacts unrelated to the cognitive processes under investigation. Consequently, analysing M/EEG data necessitates methods that can disentangle task-relevant neural signals from extraneous "noise." A widely adopted technique for this purpose is the estimation of event-related potentials (ERPs), which are stereotyped electrophysiological responses time-locked to specific sensory, cognitive, or motor events. Typically, ERPs are derived by averaging EEG or MEG epochs across multiple trials aligned to the event of interest (e.g., stimulus onset), thereby enhancing the signal-to-noise ratio by attenuating non-time-locked activity. However, this averaging approach has notable limitations: it assumes consistent latency and amplitude across trials and is primarily suited for simple categorical designs. Such assumptions may not hold in more complex experimental paradigms, potentially leading to suboptimal ERP estimations [e.g., @smith2014a].
 
-<!--
+To overcome the limitations of simple averaging, several model-based approaches for estimating ERPs have been proposed. These methods are motivated by the observation that traditional ERP averaging is mathematically equivalent to fitting an intercept-only linear regression model in a simple categorical design without overlapping events [@smith2014a]. In contrast to simple averaging, regression-based approaches to ERP estimation offer substantially greater flexibility. Notably, they allow for the modelling of both linear and nonlinear effects of continuous predictors, such as word frequency or age [e.g., @smith2014a; @smith2014b; @tremblay2014], and enable the disentangling of overlapping cognitive processes [e.g., @ehinger_unfold_2019; @skukies_brain_2024; @skukies_modelling_2021]. One widely used implementation of this approach is provided by the LIMO EEG toolbox [@pernet2011], which follows a multi-stage analysis pipeline. First, a separate regression model is fit for each datapoint (e.g., each time point and electrode) at the individual participant level to estimate ERP responses. This is followed by group-level statistical analyses of the resulting regression coefficients, often accompanied by corrections for multiple comparisons or cluster-based inference [for recent applied examples, see @dunagan2025; @wüllhorst2025].
 
-To overcome the limitations of averaging, a number of model-based options for estimating ERPs have been proposed. These approaches are justified by the observation that the averaging approach to ERPs is equivalent to an intercept-only linear regression in a simple categorical design with no overlapping factors [@smith2014a]. The regression approach to ERPs is much more flexible than simpl averaging, as it allows modelling linear and non-linear effects of continuous predictors such as word frequency or age [e.g., @smith2014a; @smith2014b; @tremblay2014] and allow modelling and disentangling overlapping processes [e.g., @skukies_brain_2024; @skukies_modelling_2021] as implemented in the UNFOLD toolbox [@ehinger_unfold_2019]. The regression approach, as implemented for instance in the LIMO toolbox [@pernet2011], is a multi-stage procedure in which a participant-level regression model is fitted independently to each datapoint (e.g., channel, timestep, etc.) to estimate the ERP, followed by group-level statistical analyses of the regression coefficients, itself followed by multiplicity corrections or cluster-based inference [for recent applied examples, see for instance @dunagan2025; @wüllhorst2025]. Whereas this approach allows including linear and non-linear discrete and continuous predictors when estimating the ERP, it has several limitations. First, the participant-level modelling ignores spatiotemporal dependencies as it treats all datapoints independently. Second, this approach does not take into account the participant (or stimulus) variability when testing group-level hypotheses (as could be done for instance via multilevel modelling). Finally, because the output of this procedure is summarised by cluster-based inference, its conclusions suffer from the same limitations discussed in the previous section.
+Although this framework allows for the inclusion of a wide range of predictors--both continuous and categorical, linear and nonlinear--it still has important limitations. First, fitting separate models for each datapoint ignores the spatiotemporal dependencies inherent in M/EEG data, potentially reducing statistical power and interpretability. Second, the subsequent group-level analyses typically do not account for hierarchical dependencies which could otherwise be addressed through multilevel modelling. Finally, because the output of this procedure is summarised by cluster-based inference, its conclusions remain subject to the limitations discussed in the previous section.
 
--->
-
-To overcome the limitations of simple averaging, several model-based approaches for estimating ERPs have been proposed. These methods are motivated by the observation that traditional ERP averaging is mathematically equivalent to fitting an intercept-only linear regression model in a simple categorical design without overlapping events [@smith2014a]. In contrast to simple averaging, regression-based approaches to ERP estimation offer substantially greater flexibility. Notably, they allow for the modelling of both linear and nonlinear effects of continuous predictors--such as word frequency or age [e.g., @smith2014a; @smith2014b; @tremblay2014]--and enable the disentangling of overlapping cognitive processes [e.g., @ehinger_unfold_2019; @skukies_brain_2024; @skukies_modelling_2021]. One widely used implementation of this approach is provided by the LIMO EEG toolbox [@pernet2011], which follows a multi-stage analysis pipeline. First, a separate regression model is fit for each datapoint (e.g., each time point and electrode) at the individual participant level to estimate ERP responses. This is followed by group-level statistical analyses of the resulting regression coefficients, often accompanied by multiple comparison corrections or cluster-based inference [for recent applied examples, see @dunagan2025; @wüllhorst2025].
-
-Although this framework allows for the inclusion of a wide range of predictors--both continuous and categorical, linear and nonlinear--it still has important limitations. First, fitting separate models for each datapoint ignores the spatiotemporal dependencies inherent in M/EEG data, potentially reducing statistical power and interpretability. Second, the subsequent group-level analyses typically do not account for hierarchical dependencies, between-participant or between-stimulus variability, which could otherwise be addressed through multilevel modelling. Finally, because the output of this procedure is summarised by cluster-based inference, its conclusions remain subject to the limitations discussed in the previous section.
-
-<!--
-
-Building upon the regression framework, recent advances allow modelling and disentangling overlapping processes [e.g., @skukies_brain_2024; @skukies_modelling_2021] as implemented in the UNFOLD toolbox [@ehinger_unfold_2019]...
-
-In addition to modelling the non-linear effects of continuous predictors (e.g., word frequency) on the ERP amplitude, GAMs have been used for modelling the effect of time, that is, the shape of the ERP itself [@abugaber2023; @baayen2018; @meulman2015; @meulman2023]... In the next section, we turn to a brief introduction to generalised additive models and discuss their use for modelling M/EEG timeseries...
-
--->
-
-Beyond modelling nonlinear effects of continuous predictors on ERP amplitudes, generalised additive models (GAMs) have been employed to capture the temporal dynamics of ERPs themselves, effectively modelling the shape of the waveform over time [@abugaber2023; @baayen2018; @meulman2015; @meulman2023]. This approach allows for the estimation of smooth, data-driven functions that characterise how neural responses evolve over time, offering a flexible alternative to traditional linear models. In the following section, we provide a brief introduction to GAMs, highlighting their applicability to M/EEG time series analysis and the advantages they offer over conventional methods.
+Beyond modelling nonlinear effects of continuous predictors on ERP amplitudes, GAMs have been employed to capture the temporal dynamics of ERPs themselves, effectively modelling the shape of the waveform over time [@abugaber2023; @baayen2018; @meulman2015; @meulman2023]. This approach allows for the estimation of smooth, data-driven functions that characterise how neural responses evolve over time, offering a flexible alternative to traditional linear models. In the following section, we provide a brief introduction to GAMs, highlighting their applicability to M/EEG time series analysis and the advantages they offer over conventional methods.
 
 ## Generalised additive models
 
-In generalised additive models (GAMs), the functional relationship between the predictors and the response variable is decomposed into a sum of low-dimensional non-parametric functions. A typical GAM has the following form:
+In generalised additive models, the functional relationship between the predictors and the response variable is decomposed into a sum of low-dimensional non-parametric functions. A typical GAM has the following form:
 
 $$
 \begin{aligned} 
@@ -180,7 +170,7 @@ $$
 f_{j}\left(x_{i j}\right) = \sum_{k=1}^K \beta_{jk} b_{jk}\left(x_{ij}\right)
 $$
 
-where $\beta_{jk}$ is the weight (coefficient) associated with the $k$th basis function $b_{jk}()$ evaluated at the covariate value $x_{ij}$ for the $j$th smooth function $f_{j}$. To clarify the terminology at this point: *splines* are functions composed of simpler functions. These simpler functions are called *basis functions* (e.g., cubic polynomial, thin-plate) and the set of basis functions is called a *basis*. Each basis function gets its coefficient and the resultant spline is the sum of these weighted basis functions (@fig-intro-gam\ignorespaces A). Splines coefficients are penalised (usually through the squared of the smooth functions' second derivative) in a way that can be interpreted, in Bayesian terms, as a prior on the "wiggliness" of the function [@miller2025; @wood2017]. In other words, more complex (wiggly) basis functions are automatically penalised.
+where $\beta_{jk}$ is the weight (coefficient) associated with the $k$th basis function $b_{jk}()$ evaluated at the covariate value $x_{ij}$ for the $j$th smooth function $f_{j}$. To clarify the terminology at this point: *splines* are functions composed of simpler functions. These simpler functions are called *basis functions* (e.g., cubic polynomial, thin-plate) and the set of basis functions is called a *basis*. Each basis function is weighted by its coefficient and the resultant spline is the sum of these weighted basis functions (@fig-intro-gam\ignorespaces A). Splines coefficients are penalised (usually through the square of the smooth functions' second derivative) in a way that can be interpreted, in Bayesian terms, as a prior on the "wiggliness" of the function [@miller2025; @wood2017]. In other words, more complex (wiggly) basis functions are automatically penalised.
 
 <!--
 
@@ -196,7 +186,7 @@ The Bayesian approach to statistical modelling is characterised by its reliance 
 
 -->
 
-```{r fig-intro-gam, echo = FALSE, fig.width = 9, fig.cap = "Different types of GAMs. **A**: GAMs predictions are computed as the weigthed sum (in black) of basis functions (here thin-plate basis functions, in grey). **B**: Constant-effect GAM, with 5 participants in colours and the group-level prediction in black. **C**: Varying-intercept + varying-slope GAMM (with constant smoother). **D**: Varying-intercept + varying-slope + varying-smoother GAMM. In this model, each participant gets its own intercept, slope, and degree of 'wiggliness' (smoother)."}
+```{r fig-intro-gam, fig.width = 9, fig.cap = "Different types of GAMs. **A**: GAMs predictions are computed as the weigthed sum (in black) of basis functions (here thin-plate basis functions, in grey). **B**: Constant-effect GAM, with 5 participants in colours and the group-level prediction in black. **C**: Varying-intercept + varying-slope GAMM (with constant smoother). **D**: Varying-intercept + varying-slope + varying-smoother GAMM. In this model, each participant gets its own intercept, slope, and degree of 'wiggliness' (smoother)."}
 ########################
 # simulating some data #
 ########################
@@ -383,13 +373,7 @@ Introduction to multilevel GAMs [@pedersen_hierarchical_2019]... Proper inclusio
 
 -->
 
-A detailed treatment of the technical underpinnings of GAMs is beyond the scope of this article [see reference books such as @hastie2017; @wood2017]. However, it is worth emphasising that GAMs have been successfully applied to a wide range of time series data across the cognitive sciences, including pupillometry [e.g., @vanrij2019], articulography [e.g., @wieling2018], speech formant dynamics [e.g., @sóskuthy2021], neuroimaging data [e.g., @dinga2021], and event-related potentials [e.g., @abugaber2023; @baayen2018; @meulman2015; @meulman2023]. Their appeal for modelling M/EEG data lies in their ability to flexibly capture the complex shape of ERP waveforms without overfitting, through the use of smooth functions constrained by penalisation. Recent extensions, such as distributional GAMs [@rigby2005; @umlauf2018], allow researchers to model not only the mean structure but also the variance (or scale) and other distributional properties as functions of predictors--a feature that has proven useful in modelling neuroimaging data [e.g., @dinga2021]. Moreover, hierarchical or multilevel GAMs [@pedersen_hierarchical_2019] provide a principled way to account for the nested structure of M/EEG data (e.g., trials within participants), enabling the inclusion of varying intercepts, slopes, and smoothers (as illustrated in @fig-intro-gam\ignorespaces C-D). This approach mitigates the risk of overfitting and reduces the influence of outliers on smooth estimates [@baayen2020; @meulman2023].
-
-<!--
-
-In the following, we introduce our proposed approach based on Bayesian generalized additive multilevel models (Bayesian GAMMs), which builds on these strengths while providing fully probabilistic estimates of ERP dynamics. We illustrate how this framework enables direct inference on the presence and timing of neural effects at the trial level, across conditions and participants, and show that it outperforms conventional methods in both simulated and real M/EEG datasets.
-
--->
+A detailed treatment of the technical underpinnings of GAMs is beyond the scope of this article [see reference books such as @hastie2017; @wood2017]. However, it is worth emphasising that GAMs have been successfully applied to a wide range of time series data across the cognitive sciences, including pupillometry [e.g., @vanrij2019], articulography [e.g., @wieling2018], speech formant dynamics [e.g., @sóskuthy2021], neuroimaging data [e.g., @dinga2021], and event-related potentials [e.g., @abugaber2023; @baayen2018; @meulman2015; @meulman2023]. Their appeal for modelling M/EEG data lies in their ability to flexibly capture the complex shape of ERP waveforms without overfitting, through the use of smooth functions constrained by penalisation. Recent extensions, such as distributional GAMs [@rigby2005; @umlauf2018], allow researchers to model not only the mean structure but also the variance (or scale) and other distributional properties as functions of predictors, a feature that has proven useful in modelling neuroimaging data [e.g., @dinga2021]. Moreover, hierarchical or multilevel GAMs [@pedersen_hierarchical_2019] provide a principled way to account for the nested structure of M/EEG data (e.g., trials within participants), enabling the inclusion of varying intercepts, slopes, and smoothers (as illustrated in @fig-intro-gam\ignorespaces C-D). This approach mitigates the risk of overfitting and reduces the influence of outliers on smooth estimates [@baayen2020; @meulman2023].
 
 ## Objectives
 
@@ -403,13 +387,15 @@ Given the previously reported limitations of cluster-based inference to precisel
 
 -->
 
-Cluster-based permutation tests are widely used in M/EEG research to identify statistically significant effects across time and space. However, these methods have notable limitations, particularly in accurately determining the precise onset and offset of neural effects. To address these limitations, we developed a model-based approach relying on Bayesian generalised additive multilevel models implemented in `R` via the `brms` package [@brms2017; @brms2018]. We evaluated the performance of this approach against conventional methods using both simulated and actual M/EEG data. Our findings demonstrate that this method provides more precise and reliable estimates of effect onsets and offsets, offering a valuable tool for researchers seeking to enhance the temporal resolution of their analyses.
+Cluster-based permutation tests are widely used in M/EEG research to identify statistically significant effects across time and space. However, these methods have notable limitations, particularly in accurately determining the precise onset and offset of neural effects. To address these limitations, we developed a model-based approach relying on Bayesian generalised additive multilevel models implemented in `R` via the `brms` package [@brms2017; @brms2018]. We evaluated the performance of this approach against conventional methods using both simulated and actual M/EEG data. Our findings demonstrate that this method provides more precise and reliable estimates of effects' onset and offset than conventional approaches such as cluster-based inference.
 
-# Methods
+# Benchmarking with known ground truth
 
-## M/EEG data simulation
+## Methods
 
-Following the approach of @sassenhagen2019 and @rousselet_using_2025, we simulated EEG data stemming from two conditions, one with noise only, and the other with noise + signal. As in previous studies, the noise was generated by superimposing 50 sinusoids at different frequencies, following an EEG-like spectrum [see code in the online supplementary materials and details in @yeung2004]. As in @rousselet_using_2025, the signal was generated from a truncated Gaussian distribution with an objective onset at 160 ms, a peak at 250 ms, and an offset at 342 ms. We simulated this signal for 250 timesteps between 0 and 0.5s, akin to a 500 Hz sampling rate. We simulated data for a group of 20 participants (with variable true onset) with 50 trials per participant and condition (@fig-eeg). All figures and simulation results can be reproduced using the `R` code available on GitHub: <https://github.com/lnalborczyk/brms_meeg>.
+### M/EEG data simulation
+
+To assess the accuracy of group-level onset and offset estimation of our proposed method, we simulated EEG with known onset and offset values. Following the approach of @sassenhagen2019 and @rousselet_using_2025, we simulated EEG data stemming from two conditions, one with noise only, and the other with noise + signal. As in previous studies, the noise was generated by superimposing 50 sinusoids at different frequencies, following an EEG-like spectrum [see code in the online supplementary materials and details in @yeung2004]. As in @rousselet_using_2025, the signal was generated from a truncated Gaussian distribution with an objective onset at 160 ms, a peak at 250 ms, and an offset at 342 ms. We simulated this signal for 250 timesteps between 0 and 0.5s, akin to a 500 Hz sampling rate. We simulated data for a group of 20 participants (with variable true onset) with 50 trials per participant and condition (@fig-eeg). All figures and simulation results can be reproduced using the `R` code available online at: <https://github.com/lnalborczyk/brms_meeg>.
 
 ```{r fig-eeg, echo = FALSE, fig.width = 9, fig.cap = "Mean simulated EEG activity in two conditions with 50 trials each, for a group of 20 participants. The error band represents the mean +/- 1 standard error of the mean."}
 # setting the seed for reproducible results
@@ -512,9 +498,9 @@ raw_df %>%
     labs(x = "Time (s)", y = "Simulated EEG signal (a.u.)")
 ```
 
-## Model description and model fitting
+### Model description and model fitting
 
-We then fitted a Bayesian GAM (BGAM) using the `brms` package [@brms2017; @brms2018; @nalborczyk2019] and default priors (i.e., weakly informative priors). We ran eight Markov Chain Monte-Carlo (MCMC) to approximate the posterior distribution, including each 5000 iterations and a warmup of 2000 iterations, yielding a total of $8 \times (5000-2000) = 24000$ posterior samples to use for inference. Posterior convergence was assessed examining trace plots as well as the Gelman–Rubin statistic $\hat{R}$ [@gabry2019; @gelman2020]. The `brms` package uses the same syntax as `r pkrt("mgcv")` for specifying smooth effects. @fig-plot-post-slope shows the predictions of this model together with the raw data.
+We then fitted a Bayesian GAM (BGAM) using the `brms` package [@brms2017; @brms2018] and default priors (i.e., weakly informative priors). We ran eight Markov Chain Monte-Carlo (MCMC) to approximate the posterior distribution, including each 5000 iterations and a warmup of 2000 iterations, yielding a total of $8 \times (5000-2000) = 24000$ posterior samples to use for inference. Posterior convergence was assessed examining trace plots as well as the Gelman–Rubin statistic $\hat{R}$ [@gabry2019; @gelman2020]. The `brms` package uses the same syntax as `r pkrt("mgcv")` for specifying smooth effects. @fig-plot-post-slope shows the predictions of this model together with the raw data.
 
 ```{r gam, results = "hide"}
 # computing the average EEG signals for each participant
@@ -540,7 +526,7 @@ gam <- brm(
     )
 ```
 
-However, the previous model only included constant (fixed) effects, thus not properly accounting for between-participant variability. We next fitted a multilevel version of the BGAM [BGAMM, for an introduction to Bayesian multilevel models in `brms`, see @nalborczyk2019] including a varying intercept and slope for participant (but only with a constant smoother). Although it is possible to fit a BGAMM using data at the single-trial level, we present a computationally lighter version of the model that is fitted directly on by-participant summary statistics (mean and SD), similar to what is done in meta-analysis.
+However, the previous model only included constant (fixed) effects, thus not properly accounting for between-participant variability. We next fitted a multilevel version of the BGAM [BGAMM, for an introduction to Bayesian multilevel models in `brms`, see @nalborczyk2019] including a varying intercept and slope for participant (but with a constant smoother). Although it is possible to fit a BGAMM using data at the single-trial level, we present a computationally lighter version of the model that is fitted directly on by-participant summary statistics (mean and SD), similar to what is done in meta-analysis.
 
 ```{r meta-gam, results = "hide"}
 # computing the mean and SD of EEG signals for each participant
@@ -605,7 +591,7 @@ meta_gam <- brm(
 # plot(model_comp)
 ```
 
-We depict the posterior predictions together with the posterior estimate of the slope for `condition` at each timestep (@fig-plot-post-slope). This figure suggests that the BGAMM provides an adequate description of the simulated data (see further posterior predictive checks in @sec-basis).
+We depict the posterior predictions together with the posterior estimate of the slope for `condition` at each timestep (@fig-plot-post-slope). This figure suggests that the BGAMM provides an adequate description of the simulated data (see further posterior predictive checks in @apx-basis).
 
 ```{r fig-plot-post-slope, echo = FALSE, fig.width = 8, fig.asp = 0.5, fig.cap = "Posterior estimate of the EEG activity in each condition (left) and posterior estimate of the difference in EEG activity (right) according to the BGAMM."}
 # defining a function to plot posterior predictions
@@ -689,9 +675,9 @@ plot_post_slope <- function (model, data = NULL) {
 plot_post_preds(model = meta_gam) + plot_post_slope(model = meta_gam)
 ```
 
-We then compute the posterior probability of the slope for `condition` being above $0$ (@fig-post-prob-ratio, left). From this quantity, we compute the ratio of posterior probabilities (i.e., $p/(1-p)$) and visualise the timecourse of this ratio superimposed with the conventional thresholds on evidence ratios (@fig-post-prob-ratio, right). Note that a ratio of 10 means that the probability of the difference being above 0 is 10 times higher than the probability of the difference not being above 0, given the data, the priors, and other model's assumptions.[^1] Thresholding the posterior probability ratio thus provides a model-based approach for estimating the onset and offset of M/EEG effects, whose properties will be assessed in the simulation study. An important advantage is that the proposed approach can be extended to virtually any model structure.
+We then compute the posterior probability of the slope for `condition` being above $0$ (@fig-post-prob-ratio, left). From this quantity, we compute the ratio of posterior probabilities (i.e., $p/(1-p)$), or posterior odds, and visualise the timecourse of these odds superimposed with the conventional thresholds on evidence ratios (@fig-post-prob-ratio, right). A ratio of 10 means that the probability of the difference being above 0 is 10 times higher than the probability of the difference not being above 0, given the data, the priors, and other model's assumptions.[^1] Thresholding the posterior odds thus provides a model-based approach for estimating the onset and offset of M/EEG effects, whose properties will be assessed in the simulation study. An important advantage is that the proposed approach can be extended to virtually any model structure.
 
-[^1]: This posterior probability ratio, or posterior odds, is equivalent to a Bayes factor, assuming 1:1 prior odds.
+[^1]: These posterior odds are equivalent to a Bayes factor, assuming 1:1 prior odds.
 
 ```{r tests2, echo = FALSE, eval = FALSE}
 # compute percentage in ROPE
@@ -825,7 +811,7 @@ lpd_results %>%
     geom_point()
 ```
 
-```{r fig-post-prob-ratio, echo = FALSE, out.width = "100%", fig.width = 9, fig.asp = 0.5, fig.cap = "Left: Posterior probability of the EEG difference (slope) being above 0 according to the BGAMM. Right: Ratio of posterior probability according to the BGAMM (on a log10 scale). Timesteps above threshold (10) are highlighted in green. NB: the minimum and maximum possible ratio values are determined (bounded) by the number of posterior samples in the model."}
+```{r fig-post-prob-ratio, echo = FALSE, out.width = "100%", fig.width = 9, fig.asp = 0.5, fig.cap = "Left: Posterior probability of the EEG difference (slope) being above 0 according to the BGAMM. Right: Posterior odds according to the BGAMM (on a log10 scale). Timesteps above threshold (10) are highlighted in green. NB: the minimum and maximum possible posterior odds are determined (bounded) by the number of posterior samples in the model."}
 # defining a function to compute and plot the posterior probability ratio
 plot_post_test_ratio <- function (model, sesoi = 0, threshold = 10) {
     
@@ -859,7 +845,8 @@ plot_post_test_ratio <- function (model, sesoi = 0, threshold = 10) {
         geom_vline(xintercept = true_offset, linetype = 2) +
         geom_line() +
         ylim(c(0, 1) ) +
-        labs(x = "Time (s)", y = expression(Pr(beta>0~"|"~data, model) ) )
+        # labs(x = "Time (s)", y = expression(Pr(beta>0~"|"~data, model) ) )
+        labs(x = "Time (s)", y = expression(p(beta>0~"|"~data) ) )
     
     # plotting it
     ratio_plot <- prob_y_above_0 %>%
@@ -888,7 +875,7 @@ plot_post_test_ratio <- function (model, sesoi = 0, threshold = 10) {
             ) +
         labs(
             x = "Time (s)",
-            y = expression(Pr(beta>0~"|"~data) / (1 - Pr(beta>0~"|"~data) ) )
+            y = expression(p(beta>0~"|"~data) / (1 - p(beta>0~"|"~data) ) )
             )
     
     # plotting both the posterior probability and the ratio...
@@ -1003,7 +990,8 @@ plot_post_test_ratio_individual <- function (model, sesoi = 0, threshold = 10) {
         geom_line(alpha = 0.5) +
         labs(
             x = "Time (s)",
-            y = expression(Pr(beta>0~"|"~data, model) ),
+            # y = expression(Pr(beta>0~"|"~data, model) ),
+            y = expression(p(beta>0~"|"~data) ),
             title = "Posterior probabilities per participant"
             ) +
         ylim(c(0, 1) ) +
@@ -1035,7 +1023,7 @@ plot_post_test_ratio_individual <- function (model, sesoi = 0, threshold = 10) {
             ) +
         labs(
             x = "Time (s)",
-            y = expression(Pr(beta>0~"|"~data) / (1 - Pr(beta>0~"|"~data) ) ),
+            y = expression(p(beta>0~"|"~data) / (1 - p(beta>0~"|"~data) ) ),
             title = "Posterior probability ratios per participant"
             ) +
         theme(legend.position = "none")
@@ -1111,17 +1099,13 @@ plot_post_preds_ppt <- function (model, data = NULL, true_onset = NULL, true_off
 plot_post_preds_ppt(model = meta_gam)
 ```
 
-\newpage
-
-## Error properties of the proposed approach
-
 <!--
 
-Note: Given the focus on the precision of onset/offset estimates, is it correct/relevant/sensible to mention that we are interested here in quantifying type-S and type-M (rather than type-1 or type-2) errors?
+\newpage
 
--->
+### Error properties of the proposed approach
 
-We then assessed the performance of the proposed approach by computing the difference between the true and estimated onset/offset of the EEG difference according to various `k` (basis dimension) and `threshold` values. Remember that the EEG signal was generated from a truncated Gaussian with an objective onset at 160 ms, a maximum at 250 ms, and an offset at 342 ms. @fig-onset-error shows that the multilevel GAM can almost exactly recover the true onset and offset values, given some reasonable choice of `k` and `threshold` values. We provide more detailed recommendations on how to set `k` in @sec-basis. This figure further reveals that the optimal `k` and `threshold` values may differ for the onset and offset values, and there there seems to exist a trade-off between these two parameters: lower `k` values lead to poorer estimations, but these poor estimations can be compensated (only to some extent) by higher `threshold` values (and reciprocally).
+We then assessed the performance of the proposed approach by computing the difference between the true and estimated onset/offset of the EEG difference according to various `k` (basis dimension) and `threshold` values. Remember that the EEG signal was generated from a truncated Gaussian with an objective onset at 160 ms, a maximum at 250 ms, and an offset at 342 ms. @fig-onset-error shows that the multilevel GAM can almost exactly recover the true onset and offset values, given some reasonable choice of `k` and `threshold` values. We provide more detailed recommendations on how to set `k` in @apx-basis. This figure further reveals that the optimal `k` and `threshold` values may differ for the onset and offset values, and there seems to exist a trade-off between these two parameters: lower `k` values lead to poorer estimations, but these poor estimations can be compensated (only to some extent) by higher `threshold` values (and reciprocally).
 
 ```{r fig-onset-error, eval = TRUE, echo = FALSE, results = "hide", dev = "png", dpi = 300, fig.width = 9, fig.asp = 0.5, fig.cap = "Average estimation error (RMSE) for the onset (left) and offset (right) according to various basis dimension and threshold values for the BGAM (computed from 100 simulated datasets)."}
 # running the simulation on the HPC cluster
@@ -1268,9 +1252,11 @@ results %>%
 
 \newpage
 
-## Comparing the onsets/offsets estimates across approaches
+-->
 
-We then compared the ability of the BGAM to accurately estimate the onset and offset of the ERP difference to other widely-used methods. First, we conducted mass-univariate t-tests (thus treating each timestep independently) and identified the onset and offset of the ERP difference as the first and last values crossing an arbitrary significance threshold ($\alpha = 0.05$). We then followed the same approach but after applying different forms of multiplicity correction to the $p$-values. We compared two methods that control the FDR [i.e., `BH95`, @benjamini1995; and `BY01`, @benjamini2001], one method that controls the FWER [i.e., Holm–Bonferroni method, @holm1979], and two cluster-based permutation methods [permutation with a single cluster-forming threshold and threshold-free cluster enhancement, `TFCE`, @smith2009]. The `BH95`, `BY01`, and `Holm` corrections were applied to the p-values using the `p.adjust()` function in `R`. The cluster-based inference was implemented using a cluster-sum statistic of squared $t$-values, as implemented in `MNE-Python` [@gramfort2013], called via `r pkrt("reticulate")`. We also compared these estimates to the onset and offset as estimated using the binary segmentation algorithm, as implemented in `r pkrt("changepoint")`, and applied directly to the squared $t$-values [as in @rousselet_using_2025]. @fig-corrections illustrates the onsets and offsets estimated by each method on a single simulated dataset and shows that all methods systematically overestimate the true onset and underestimate the true offset.
+### Comparing the onset/offset estimates across approaches
+
+We then compared the ability of the BGAM to accurately estimate the onset and offset of the ERP difference to other widely-used methods. First, we conducted mass-univariate t-tests (thus treating each timestep independently) and identified the onset and offset of the ERP difference as the first and last values crossing an arbitrary significance threshold ($\alpha = 0.05$). We then followed the same approach but after applying different forms of multiplicity correction to the $p$-values. We compared two methods that control the FDR [i.e., `BH95`, @benjamini1995; and `BY01`, @benjamini2001], one method that controls the FWER [i.e., Holm–Bonferroni method, @holm1979], and two cluster-based permutation methods [permutation with a single cluster-forming threshold and threshold-free cluster enhancement, `TFCE`, @smith2009]. The `BH95`, `BY01`, and `Holm` corrections were applied to the p-values using the `p.adjust()` function in `R`. The cluster-based inference was implemented using a cluster-sum statistic of squared $t$-values, as implemented in `MNE-Python` [@gramfort2013], called via `r pkrt("reticulate")`. We also compared these estimates to the onset and offset as estimated using the binary segmentation algorithm, as implemented in `r pkrt("changepoint")`, and applied directly to the squared $t$-values [as in @rousselet_using_2025].^[As in @rousselet_using_2025, we fixed the number of expected change points to two in the binary segmentation algorithm, thus producing always one cluster.] @fig-corrections illustrates the onsets and offsets estimated by each method on a single simulated dataset and shows that all methods systematically overestimate the true onset and underestimate the true offset. In addition, the `Raw p-value`, `FDR BH95`, and `FDR BY01` methods identify clusters well before the true onset and after the true offset.
 
 ```{r fig-corrections, echo = FALSE, results = "hide", fig.width = 8, fig.asp = 0.5, fig.cap = "Exemplary timecourse of squared t-values with true onset and offset (vertical black dashed lines) and onsets/offsets identified using the raw p-values, the corrected p-values (BH95, BY01, Holm), the cluster-based methods (Cluster mass, TFCE), or using the binary segmentation method (Change point)."}
 # defining an arbitrary alpha threshold
@@ -1314,9 +1300,17 @@ find_clusters <- function (df, threshold = aath) {
 }
 
 # estimating onset and offset using the binary segmentation method
-res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 2)
+res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 2, penalty = "MBIC", minseglen = 2)
 onset_cpt <- tests_results$time[res@cpts[1]]
 offset_cpt <- tests_results$time[res@cpts[2]]
+
+# sanity checks
+# ts.plot(tests_results$tval)
+# for (i in 1:length(res@cpts) ) {
+#     
+#     abline(v = res@cpts[i])
+#     
+# }
 
 # running the cluster-based permutation tests
 source(file = "code/mne_clusters.R")
@@ -1379,39 +1373,523 @@ tests_results %>%
     labs(x = "Time (s)", y = "Squared t-value", colour = NULL)
 ```
 
-\newpage
+### Simulation study
 
-## Simulation study
+To assess the accuracy of group-level onset and offset estimation, all methods were compared by computing the bias (defined as the mean difference between the estimated and true value of the onset/offset), mean absolute error (MAE), root mean square error (RMSE), and variance of onset/offset estimates from 10,000 simulated datasets. Following @rousselet_using_2025, each participant was assigned a random onset between 150 and 170ms. Whereas the present article focuses on one-dimensional signals (e.g., one M/EEG channel), we provide a 2D application in @apx-2D.
 
-To assess the accuracy of group-level onset estimation, the various methods were compared using the bias (defined as the median difference between the estimated and true value of the onset/offset), median absolute error (MAE), root mean square error (RMSE), variance, and median absolute deviation (MAD) of onset/offset estimates computed on 10,000 simulated datasets. As in @rousselet_using_2025, each participant was assigned a random onset between 150 and 170ms. Whereas the focus of the present article focuses is on one-dimensional signals (e.g., one M/EEG channel), we provide a 2D application in @sec-2D.
+<!--
 
-## Application to actual MEG data
+## Results
 
-To complement the simulation study, we evaluated the performance of all methods on actual MEG data [decoding results from @nalborczyk:inprep]. In this study, we conducted time-resolved multivariate pattern analysis (MVPA, also known as decoding) of MEG data during reading tasks. As a result, we obtain a timecourse of decoding performance (ROC AUC), bounded between 0 and 1, for each participant ($N=32$). Next, we wanted to *test* whether the group-level average decoding accuracy is above chance (i.e., 0.5) at each timestep (@fig-decoding-data). To achieve this, we fitted a BGAM as introduced previously, but we replaced the $\mathrm{Normal}$ likelihood function by a $\mathrm{Beta}$ one to account for the bounded nature of AUC values (between 0 and 1) [for a tutorial on Beta regression, see @coretta2025].
+This section is divided in two parts. First, we present the results from the simulation study, assessing the bias and variance of each method when applied to simulated data in which the ground truth is known. Second, we present the results obtained when applying the different methods to actual MEG data (decoding performance through time), assessing the reliability of the estimates provided by each method.
 
-Note that although we chose a basis dimension of $k=50$, which seems appropriate for the present data, this choice should be adapted according to the properties of the modelled data (e.g., signal-to-noise ratio, prior low-pass filtering, sampling rate) and should be assessed by the usual model checking tools (e.g., posterior predictive checks, see also @sec-basis). To better distinguish signal from noise, we also defined a region of practical equivalence [ROPE, @kruschke2017], defined as the chance level plus the standard deviation of the (group-level average) decoding performance during the baseline period.
+## Simulation study (bias and variance)
 
-```{r decoding-model, eval = FALSE}
-# fitting the Beta GAM
-meg_decoding_gam <- brm(
-    auc ~ s(time, bs = "cr", k = 50),
-    data = decoding_df,
-    family = Beta(),
-    warmup = 2000,
-    iter = 5000,
-    chains = 4,
-    cores = 4
+-->
+
+## Results
+
+@fig-simulation-results shows a summary of the simulation results, revealing that the proposed approach (`BGAM`) has the lowest error for both the onset and offset estimates. The `Cluster mass` and `Change point` methods also have good performance, but perhaps surprisingly, the `TFCE` method performs poorly for estimating the offset of the effect (with performance similar to the `Holm` method). Unsurprisingly, the `FDR BH95` and `Raw p-value` methods show the worst performance.
+
+```{r fig-simulation-results, echo = FALSE, fig.width = 9, fig.asp = 0.6, fig.cap = "Mean error and variance of onset and offset estimates according to each method. Variance is plotted on a log10 scale for visual purposes."}
+# loading all RDS files
+files <- list.files(
+    path = "results/errors_cluster_results", 
+    pattern = ".rds", 
+    full.names = TRUE
     )
+
+# sorting files numerically by the number in the filename
+files <- files[order(readr::parse_number(files) )]
+
+# reading and binding all files
+sim_results <- map2_dfr(
+    .x = files,
+    .y = seq_along(files),
+    .f = ~ readRDS(.x)
+    )
+
+# sanity check
+# n_distinct(sim_results$simulation_id)
+
+# identifying the best brms results
+# sim_results %>%
+#     filter(method == "brms") %>%
+#     pivot_wider(names_from = onset_offset, values_from = value) %>%
+#     summarise(
+#         bias_onset = mean(onset - true_onset),
+#         MAE_onset = mean(abs(onset - true_onset) ),
+#         variance_onset = var(onset),
+#         bias_offset = mean(offset - true_offset),
+#         MAE_offset = mean(abs(offset - true_offset) ),
+#         variance_offset = var(offset),
+#         .by = threshold
+#         ) %>%
+#     arrange(MAE_onset, MAE_offset)
+#     # arrange(bias_onset, bias_offset)
+#     # arrange(variance_onset, variance_offset)
+
+# plotting the distribution of results
+# sim_results %>%
+#     # keeping only threshold = 20 for BGAM and threshold = 0.05 for frequentist results
+#     filter(threshold %in% c(0.05, 20) ) %>%
+#     mutate(
+#         error = case_when(
+#             # grepl("onset", onset_offset) ~ abs(value - true_onset),
+#             # grepl("offset", onset_offset) ~ abs(value - true_offset)
+#             grepl("onset", onset_offset) ~ value - true_onset,
+#             grepl("offset", onset_offset) ~ value - true_offset
+#             )
+#         ) %>%
+#     mutate(onset_offset = factor(x = onset_offset, levels = c("onset", "offset") ) ) %>%
+#     mutate(
+#         method = factor(
+#             x = method,
+#             levels = c(
+#                 "raw_p", "pval_bh", "pval_by", "pval_holm",
+#                 "cluster_mass", "cluster_tfce", "cpt", "brms"
+#                 ),
+#             labels = c(
+#                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
+#                 "TFCE", "Change point", "BGAM"
+#                 ),
+#             )
+#         ) %>%
+#     mutate(
+#         plot_row = case_when(
+#             method %in% c("Raw p-value", "Holm") ~ 1,
+#             method %in% c("FDR BH95", "FDR BY01") ~ 2,
+#             method %in% c("Cluster mass", "TFCE") ~ 3,
+#             method %in% c("Change point", "BGAM") ~ 4
+#             )
+#         ) %>%
+#     ggplot(
+#         aes(
+#             x = error,
+#             colour = method,
+#             fill = method
+#             )
+#         ) +
+#     geom_vline(xintercept = 0, linetype = 2) +
+#     geom_density(aes(fill = NULL) ) +
+#     facet_grid(plot_row~onset_offset, scales = "free_x") +
+#     theme_light(base_size = 12, base_family = "Open Sans") +
+#     scale_fill_manual(values = met.brewer(name = "Johnson", n = 8) ) +
+#     scale_colour_manual(values = met.brewer(name = "Johnson", n = 8) ) +
+#     labs(x = "Onset/Offset (s)", y = "Density")
+
+# computing and plotting bias and variance
+# bias := mean(sim_onset_offset_distrib - true_onset_offset)
+# variance := var(sim_onset_offset_distrib - true_onset_offset)
+sim_results %>%
+    # keeping only threshold = 20 for BGAM and threshold = 0.05 for frequentist results
+    filter(threshold %in% c(0.05, 20) ) %>%
+    mutate(
+        error = case_when(
+            # grepl("onset", onset_offset) ~ abs(value - true_onset),
+            # grepl("offset", onset_offset) ~ abs(value - true_offset)
+            grepl("onset", onset_offset) ~ value - true_onset,
+            grepl("offset", onset_offset) ~ value - true_offset
+            )
+        ) %>%
+    group_by(method, onset_offset) %>%
+    summarise(
+        mean_error = mean(error, na.rm = TRUE),
+        median_error = median(error, na.rm = TRUE),
+        mean_abs_error = mean(abs(error), na.rm = TRUE),
+        median_abs_error = median(abs(error), na.rm = TRUE),
+        variance = var(error, na.rm = TRUE),
+        mad = mad(value, na.rm = TRUE),
+        .groups = "drop"
+        ) %>%
+    ungroup() %>%
+    mutate(onset_offset = factor(x = onset_offset, levels = c("onset", "offset") ) ) %>%
+    mutate(
+        method = factor(
+            x = method,
+            levels = c(
+                "raw_p", "pval_bh", "pval_by", "pval_holm",
+                "cluster_mass", "cluster_tfce", "cpt", "brms"
+                ),
+            labels = c(
+                "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
+                "TFCE", "Change point", "BGAM (our method)"
+                ),
+            )
+        ) %>%
+    ggplot(
+        aes(
+            x = mean_error,
+            # y = mad,
+            # y = median_abs_error,
+            # y = median_abs_error,
+            # x = median_abs_error,
+            y = variance,
+            # y = mean_abs_error,
+            colour = method,
+            fill = method
+            )
+        ) +
+    geom_vline(xintercept = 0, linetype = 2) +
+    # geom_errorbar(
+    #     aes(
+    #         xmin = median_error - mad, xmax = median_error + mad,
+    #         #ymin = median_abs_error - mad, ymax = median_abs_error + mad
+    #         )
+    #     ) +
+    #     geom_errorbar(
+    #     aes(
+    #         #xmin = median_error - mad, xmax = median_error + mad,
+    #         ymin = median_abs_error - mad, ymax = median_abs_error + mad
+    #         )
+    #     ) +
+    geom_point(
+        size = 2,
+        pch = 21,
+        colour = "white",
+        show.legend = FALSE
+        ) +
+    geom_label_repel(
+        aes(label = method),
+        colour = "white",
+        size = 3,
+        segment.color = NA,
+        show.legend = FALSE
+        ) +
+    # scale_x_log10(guide = "axis_logticks") +
+    scale_y_log10(
+        guide = "axis_logticks",
+        # breaks = trans_breaks("log10", function(x) 10^x),
+        # labels = trans_format("log10", math_format(10^.x) )
+        labels = label_log(digits = 2)
+        ) +
+    facet_wrap(~onset_offset) +
+    scale_fill_manual(values = met.brewer(name = "Johnson", n = 8) ) +
+    scale_colour_manual(values = met.brewer(name = "Johnson", n = 8) ) +
+    labs(x = "Mean error (s)", y = "Variance (log-scale)")
+
+# or plotting only the error in descending order
+# sim_results %>%
+#     # keeping only threshold = 10 for BGAM and threshold = 0.05 for frequentist results
+#     filter(threshold %in% c(0.05, 20) ) %>%
+#     # filter(threshold %in% c(0.05, 10) ) %>%
+#     mutate(
+#         error = case_when(
+#             # grepl("onset", onset_offset) ~ abs(value - true_onset),
+#             # grepl("offset", onset_offset) ~ abs(value - true_offset)
+#             grepl("onset", onset_offset) ~ value - true_onset,
+#             grepl("offset", onset_offset) ~ value - true_offset
+#             )
+#         ) %>%
+#     # converting to ms
+#     # mutate(error = error * 1e3) %>%
+#     group_by(method, onset_offset) %>%
+#     summarise(
+#         mean_error = mean(error, na.rm = TRUE),
+#         median_error = median(error, na.rm = TRUE),
+#         median_abs_error = median(abs(error), na.rm = TRUE),
+#         variance = var(error, na.rm = TRUE),
+#         # variance = var(value, na.rm = TRUE),
+#         sem = sd(value, na.rm = TRUE) / sqrt(n() ),
+#         mad = mad(value, na.rm = TRUE),
+#         .groups = "drop"
+#         ) %>%
+#     ungroup() %>%
+#     mutate(onset_offset = factor(x = onset_offset, levels = c("onset", "offset") ) ) %>%
+#     mutate(
+#         method = factor(
+#             x = method,
+#             levels = c(
+#                 "raw_p", "pval_bh", "pval_by", "pval_holm",
+#                 "cluster_mass", "cluster_tfce", "cpt", "brms"
+#                 ),
+#             labels = c(
+#                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
+#                 "TFCE", "Change point", "BGAM (our method)"
+#                 ),
+#             )
+#         ) %>%
+#     mutate(
+#         method_reordered = tidytext::reorder_within(
+#             x = method,
+#             # by = 1 / error,
+#             # fun = median,
+#             # by = 1 / abs(median_error),
+#             by = 1 / median_abs_error,
+#             # by = 1 / abs(mean_error),
+#             within = onset_offset
+#             )
+#         ) %>%
+#     # mutate(
+#     #     method_reordered = fct_reorder(
+#     #         method, error, .fun = ~abs(median(.x) ), .na_rm = TRUE
+#     #         )
+#     #     ) %>%
+#     # arrange(desc(error) ) %>%
+#     # arrange(error) %>%
+#     # head()
+#     ggplot(
+#         aes(
+#             x = median_error,
+#             # x = error,
+#             xmin = median_error - mad,
+#             xmax = median_error + mad,
+#             # x = mean_error,
+#             # xmin = mean_error - variance,
+#             # xmax = mean_error + variance,
+#             y = method_reordered,
+#             colour = method,
+#             fill = method
+#             )
+#         ) +
+#     geom_vline(xintercept = 0, linetype = 2) +
+#     geom_pointrange(
+#         size = 0.25,
+#         linewidth = 0.75,
+#         show.legend = FALSE
+#         ) +
+#     # stat_histinterval(
+#     #     # breaks = "FD",
+#     #     # n = 1e3,
+#     #     # point_interval = "median_qi",
+#     #     # .width = c(0.5, 0.95),
+#     #     .width = 0.1,
+#     #     # colour = "black",
+#     #     # slab_colour = "white",
+#     #     # slab_linewidth = 0,
+#     #     slab_alpha = 0.8,
+#     #     # fill = "steelblue"
+#     #     show.legend = FALSE
+#     #     ) +
+#     facet_wrap(~onset_offset, scales = "free") +
+#     scale_y_reordered() +
+#     scale_fill_manual(values = met.brewer(name = "Johnson", n = 8) ) +
+#     scale_colour_manual(values = met.brewer(name = "Johnson", n = 8) ) +
+#     labs(
+#         x = "Estimation error (s)",
+#         # x = "Mean error (s)",
+#         y = "Method"
+#         )
+
+# saving the plot
+# ggsave(
+#     # filename = "figures/simulation_results_median_error_variance.png",
+#     # filename = "figures/simulation_results_bias_mae.png",
+#     filename = "figures/simulation_results_mae_variance.png",
+#     width = 12, height = 6, dpi = 300,
+#     device = "png"
+#     )
+
+# plotting the distribution of results
+# sim_results %>%
+#     # keeping only threshold = 10 for BGAM and threshold = 0.05 for frequentist results
+#     filter(threshold %in% c(0.05, 20) ) %>%
+#     mutate(
+#         error = case_when(
+#             # grepl("onset", onset_offset) ~ abs(value - true_onset),
+#             # grepl("offset", onset_offset) ~ abs(value - true_offset)
+#             grepl("onset", onset_offset) ~ value - true_onset,
+#             grepl("offset", onset_offset) ~ value - true_offset
+#             )
+#         ) %>%
+#     # converting to ms
+#     # mutate(error = error * 1e3) %>%
+#     # group_by(method, onset_offset) %>%
+#     # summarise(
+#     #     mean_error = mean(error, na.rm = TRUE),
+#     #     median_error = median(error, na.rm = TRUE),
+#     #     median_abs_error = median(abs(error), na.rm = TRUE),
+#     #     variance = var(error, na.rm = TRUE),
+#     #     # variance = var(value, na.rm = TRUE),
+#     #     sem = sd(value, na.rm = TRUE) / sqrt(n() ),
+#     #     mad = mad(value, na.rm = TRUE),
+#     #     .groups = "drop"
+#     #     ) %>%
+#     # ungroup() %>%
+#     mutate(onset_offset = factor(x = onset_offset, levels = c("onset", "offset") ) ) %>%
+#     mutate(
+#         method = factor(
+#             x = method,
+#             levels = c(
+#                 "raw_p", "pval_bh", "pval_by", "pval_holm",
+#                 "cluster_mass", "cluster_tfce", "cpt", "brms"
+#                 ),
+#             labels = c(
+#                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
+#                 "TFCE", "Change point", "BGAM (our method)"
+#                 ),
+#             )
+#         ) %>%
+#     mutate(
+#         method_reordered = tidytext::reorder_within(
+#             x = method,
+#             by = abs(error),
+#             fun = median,
+#             # by = 1 / abs(median_error),
+#             # by = 1 / abs(mean_error),
+#             within = onset_offset
+#             )
+#         ) %>%
+#     # mutate(
+#     #     method_reordered = fct_reorder(
+#     #         method, error, .fun = ~abs(median(.x) ), .na_rm = TRUE
+#     #         )
+#     #     ) %>%
+#     # arrange(desc(error) ) %>%
+#     # arrange(error) %>%
+#     # head()
+#     ggplot(
+#         aes(
+#             # x = median_error,
+#             x = error,
+#             # xmin = median_error - mad,
+#             # xmax = median_error + mad,
+#             # x = mean_error,
+#             # xmin = mean_error - variance,
+#             # xmax = mean_error + variance,
+#             y = method_reordered,
+#             colour = method,
+#             fill = method
+#             )
+#         ) +
+#     geom_vline(xintercept = 0, linetype = 2) +
+#     # geom_pointrange(
+#     #     size = 0.25,
+#     #     linewidth = 0.75,
+#     #     show.legend = FALSE
+#     #     ) +
+#     stat_slabinterval(
+#         n = 200,
+#         normalize = "groups",
+#         point_interval = "median_qi",
+#         # .width = c(0.1, 0.9),
+#         # .width = 0.2,
+#         .width = 0,
+#         interval_size_range = c(1, 1),
+#         fatten_point = 1.25,
+#         # slab_colour = "white",
+#         # slab_linewidth = 0,
+#         # density = "unbounded",
+#         slab_alpha = 0.5,
+#         show.legend = FALSE
+#         ) +
+#     facet_wrap(~onset_offset, scales = "free") +
+#     scale_y_reordered() +
+#     scale_fill_manual(values = met.brewer(name = "Johnson", n = 8) ) +
+#     scale_colour_manual(values = met.brewer(name = "Johnson", n = 8) ) +
+#     labs(
+#         x = "Estimation error (s)",
+#         y = "Method"
+#         )
 ```
 
-We assessed the reliability of the proposed approach using a form of permutation-based split-half reliability [as for instance in @rosenblatt2018], which consisted of the following steps. First, we created 1,000 split halves of the data (i.e., with half the participants in the original data, that is, 16 participants). For each split, we estimated the onset/offset using all methods described previously. Third, we summarised the distribution of onset/offset estimates using the median "error" (i.e., difference between the split estimate and the estimate obtained using the full dataset) and the variance across splits. This approach allows assessing how similar the estimate of each half split is to the full dataset (thus acting as a proxy for the population) and how variable the estimates are across split halves.
+These results are further summarised in @tbl-simulation-results, which shows that the `BGAM` method is almost perfectly unbiased (i.e., it has a bias of approximately 0.1ms for the onset and 2.4ms for the offset). The `Bias` column shows that all methods tend to estimate the onset later than the true onset and to estimate the offset earlier than the true offset. As can be seen from this table, the `BGAM` method has the best performance on all included metrics (except for the `Variance` of the offset estimate, where the `Change point` method performs better, presumably because it was constrained to identifying a single cluster).
 
-```{r fig-decoding-data, cache = FALSE, echo = FALSE, out.width = "75%", fig.asp = 0.75, fig.cap = "Group-level average decoding performance (N=32) superimposed with the GAM predictions (in blue) and the region of practical equivalence (ROPE, in orange) computed from the baseline period [data from @nalborczyk:inprep]. The blue horizontal markers indicate the timesteps at which the posterior probability ratio exceeds 20."}
+```{r tbl-simulation-results, eval = TRUE, echo = FALSE, results = "asis"}
+#| tbl-cap: "Summary statistics of onset/offset estimates for each method (in ms, ordered by the MAE)."
+# summarising the results
+sim_results_summary <- sim_results %>%
+    # keeping only threshold = 20 for BGAM and threshold = 0.05 for frequentist results
+    filter(threshold %in% c(0.05, 20) ) %>%
+    # filter(threshold %in% c(0.05, 10) ) %>%
+    mutate(
+        error = case_when(
+            # grepl("onset", onset_offset) ~ value - true_onset,
+            # grepl("offset", onset_offset) ~ value - true_offset
+            grepl("onset", onset_offset) ~ value * 1e3 - true_onset * 1e3,
+            grepl("offset", onset_offset) ~ value * 1e3 - true_offset * 1e3
+            )
+        ) %>%
+    # converting to ms
+    # mutate(error = error * 1e3) %>%
+    group_by(method, onset_offset) %>%
+    summarise(
+        mean_error = mean(error, na.rm = TRUE),
+        # median_error = median(error, na.rm = TRUE),
+        mean_abs_error = mean(abs(error), na.rm = TRUE),
+        # median_abs_error = median(abs(error), na.rm = TRUE),
+        rmse = sqrt(mean(error)^2),
+        variance = var(error, na.rm = TRUE),
+        # mad = mad(error, na.rm = TRUE),
+        .groups = "drop"
+        ) %>%
+    ungroup() %>%
+    mutate(
+        method = factor(
+            x = method,
+            levels = c(
+                "raw_p", "pval_bh", "pval_by", "pval_holm",
+                "cluster_mass", "cluster_tfce", "cpt", "brms"
+                ),
+            labels = c(
+                "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
+                "TFCE", "Change point", "BGAM (our method)"
+                ),
+            )
+        ) %>%
+    mutate(
+        onset_offset = factor(x = onset_offset, levels = c("onset", "offset") )
+        ) %>%
+    data.frame()
+
+# creating the table
+sim_results_summary %>%
+    mutate(
+        onset_offset = factor(
+            x = onset_offset,
+            levels = c("offset", "onset")
+            )
+        ) %>%
+    # arrange(abs(median_error) ) %>%
+    # arrange(abs(mean_error) ) %>%
+    # arrange(median_abs_error) %>%
+    arrange(mean_abs_error) %>%
+    group_by(onset_offset) %>%
+    gt() %>%
+    fmt_number(
+        columns = everything(),
+        decimals = 2
+        ) %>%
+    cols_align(
+        align = "center",
+        columns = everything()
+        ) %>%
+    cols_align(
+        align = "left",
+        columns = method
+        ) %>%
+    cols_label(
+        method = "",
+        # mean_error = "Bias_mean",
+        # median_error = "Bias",
+        mean_error = "Bias",
+        # median_abs_error = "MAE",
+        mean_abs_error = "MAE",
+        rmse = "RMSE",
+        variance = "Variance"
+        # mad = "MAD"
+        ) %>%
+    tab_options(
+        table.align = "center",
+        # table.width = "75%",
+        table.font.size = 12
+        ) %>%
+    as_latex()
+
+```
+
+# Application to actual MEG data
+
+## Methods
+
+To complement the simulation study, we evaluated the performance of all methods on actual MEG data [@nalborczyk:inprep]. In this study, the authors conducted time-resolved multivariate pattern analysis (MVPA, also known as decoding) of MEG data recorded in 32 human participants during a reading task. As a result, the authors obtained a timecourse of decoding accuray (ROC AUC), bounded between 0 and 1, for each participant. To test whether the group-level average decoding accuracy was above chance (i.e., 0.5) at each timestep, we fitted a BGAM as introduced previously with a basis dimension $k=50$ and retained all timesteps exceeding a posterior odds of 20.  To better distinguish signal from noise, we defined a region of practical equivalence [ROPE, @kruschke2017] as the upper 90% quantile of decoding performance during the baseline period (i.e., before stimulus onset). Although we chose a basis dimension of $k=50$, which seemed appropriate for the present data, this choice should be adapted according to the properties of the modelled data (e.g., signal-to-noise ratio, prior low-pass filtering, sampling rate) and should be assessed by the usual model checking tools (e.g., models comparison, posterior predictive checks, see @apx-basis).
+
+```{r fig-decoding-data, cache = FALSE, echo = FALSE, eval = FALSE, out.width = "75%", fig.asp = 0.75, fig.cap = "Group-level average decoding performance (N=32) superimposed with the BGAM predictions (in blue) and the region of practical equivalence (ROPE, in orange) computed from the baseline period [data from @nalborczyk:inprep]. The blue horizontal markers indicate the timesteps at which the posterior probability ratio exceeds 20."}
 # importing the reshaped MEG decoding results
 decoding_df <- read.csv(file = "data/decoding_results_reshaped.csv") %>%
     # removing some participants
     mutate(participant_id = cur_group_id(), .by = participant) %>%
-    filter(participant_id < 33) %>%
+    dplyr::filter(participant_id < 33) %>%
     select(-participant_id)
 
 # averaging across participants
@@ -1426,12 +1904,21 @@ decoding_summary_df <- decoding_df %>%
 chance_level <- 0.5
 
 # computing the smallest effect size of interest (SESOI)
-# as the SD of decoding performance during the baseline
+# as the upper 90% quantile of decoding performance during the baseline
 sesoi <- decoding_summary_df %>%
-    filter(time < 0) %>%
+    dplyr::filter(time < 0) %>%
     summarise(auc_mean = mean(auc_mean), .by = time) %>%
-    summarise(sesoi = sd(auc_mean) ) %>%
-    pull(sesoi)
+    summarise(sesoi = quantile(x = auc_mean, probs = 0.90) ) %>%
+    # summarise(sesoi = quantile(x = auc_mean, probs = 0.95) ) %>%
+    pull(sesoi) - chance_level
+
+# computing the smallest effect size of interest (SESOI)
+# as the SD of decoding performance during the baseline
+# sesoi <- decoding_summary_df %>%
+#     dplyr::filter(time < 0) %>%
+#     summarise(auc_mean = mean(auc_mean), .by = time) %>%
+#     summarise(sesoi = sd(auc_mean) ) %>%
+#     pull(sesoi)
 
 # computing the smallest effect size of interest (SESOI)
 # as the 95% confidence interval during the baseline
@@ -1441,42 +1928,127 @@ sesoi <- decoding_summary_df %>%
 #     summarise(sesoi = 1.96 * (sd(auc_mean) / sqrt(n() ) ) ) %>%
 #     pull(sesoi)
 
-# fitting the Beta GAM
-meg_decoding_gam <- brm(
+# fitting the GAMs
+meg_decoding_gam_gaussian_k40 <- brm(
+    auc_mean ~ s(time, bs = "cr", k = 40),
+    data = decoding_summary_df,
+    family = gaussian(),
+    warmup = 1000,
+    iter = 5000,
+    chains = 4,
+    cores = 4
+    )
+
+meg_decoding_gam_gaussian_k50 <- brm(
     auc_mean ~ s(time, bs = "cr", k = 50),
-    # auc_mean ~ 1 + baseline + s(time, bs = "tp", k = 30, by = baseline),
+    data = decoding_summary_df,
+    family = gaussian(),
+    # warmup = 1000,
+    # iter = 5000,
+    warmup = 2000,
+    iter = 10000,
+    chains = 4,
+    cores = 4
+    )
+
+meg_decoding_gam_gaussian_k60 <- brm(
+    auc_mean ~ s(time, bs = "cr", k = 60),
+    data = decoding_summary_df,
+    family = gaussian(),
+    warmup = 1000,
+    iter = 5000,
+    chains = 4,
+    cores = 4
+    )
+
+meg_decoding_gam_beta_k40 <- brm(
+    auc_mean ~ s(time, bs = "cr", k = 40),
     data = decoding_summary_df,
     family = Beta(),
     warmup = 1000,
-    iter = 4000,
+    iter = 5000,
     chains = 4,
-    cores = 4,
-    file = "models/meg_decoding_gam.rds"
-    # file = "models/meg_decoding_gam_baseline.rds"
+    cores = 4
     )
 
+meg_decoding_gam_beta_k50 <- brm(
+    auc_mean ~ s(time, bs = "cr", k = 50),
+    data = decoding_summary_df,
+    family = Beta(),
+    warmup = 1000,
+    iter = 5000,
+    chains = 4,
+    cores = 4
+    )
+
+meg_decoding_gam_beta_k60 <- brm(
+    auc_mean ~ s(time, bs = "cr", k = 60),
+    data = decoding_summary_df,
+    family = Beta(),
+    warmup = 1000,
+    iter = 5000,
+    chains = 4,
+    cores = 4
+    )
+
+# PPCs
+pp_check(meg_decoding_gam_gaussian_k40)
+pp_check(meg_decoding_gam_gaussian_k50)
+pp_check(meg_decoding_gam_gaussian_k60)
+pp_check(meg_decoding_gam_beta_k40)
+pp_check(meg_decoding_gam_beta_k50)
+pp_check(meg_decoding_gam_beta_k60)
+
+# models comparison
+loo(
+    meg_decoding_gam_gaussian_k40, meg_decoding_gam_gaussian_k50,
+    meg_decoding_gam_gaussian_k60,
+    meg_decoding_gam_beta_k40, meg_decoding_gam_beta_k50,
+    meg_decoding_gam_beta_k60
+    )
+
+meg_decoding_gam_gaussian_k40 <- add_criterion(x = meg_decoding_gam_gaussian_k40, criterio = "loo")
+meg_decoding_gam_gaussian_k50 <- add_criterion(x = meg_decoding_gam_gaussian_k50, criterio = "loo")
+meg_decoding_gam_gaussian_k60 <- add_criterion(x = meg_decoding_gam_gaussian_k60, criterio = "loo")
+meg_decoding_gam_beta_k40 <- add_criterion(x = meg_decoding_gam_beta_k30, criterio = "loo")
+meg_decoding_gam_beta_k50 <- add_criterion(x = meg_decoding_gam_beta_k50, criterio = "loo")
+meg_decoding_gam_beta_k60 <- add_criterion(x = meg_decoding_gam_beta_k60, criterio = "loo")
+
+models_comp <- loo_compare(
+    meg_decoding_gam_gaussian_k40, meg_decoding_gam_gaussian_k50,
+    meg_decoding_gam_gaussian_k60,
+    meg_decoding_gam_beta_k40, meg_decoding_gam_beta_k50,
+    meg_decoding_gam_beta_k60
+    )
+
+# summary
+print(x = models_comp, simplify = FALSE, digits = 3)
+
 # computing the posterior probability
-prob_y_above_0 <- data.frame(time = unique(meg_decoding_gam$data$time) ) %>%
+# prob_y_above_0 <- data.frame(time = unique(meg_decoding_gam$data$time) ) %>%
+prob_y_above_0 <- data.frame(time = unique(meg_decoding_gam_gaussian_k50$data$time) ) %>%
     # retrieving the posterior samples
-    add_epred_draws(object = meg_decoding_gam) %>%
+    # add_epred_draws(object = meg_decoding_gam) %>%
+    add_epred_draws(object = meg_decoding_gam_gaussian_k50) %>%
     # converting to dataframe
     data.frame() %>%
     # computing mean posterior probability at the group level
     group_by(time) %>%
     summarise(m = mean(.epred > (0 + chance_level + sesoi) ) ) %>%
+    # summarise(m = mean(.epred > (sesoi) ) ) %>%
     mutate(prob_ratio = m / (1 - m) ) %>%
     # ensuring there is no 0 or +Inf values
-    mutate(prob_ratio = pmin(prob_ratio, ndraws(meg_decoding_gam) ) ) %>%
-    mutate(prob_ratio = pmax(prob_ratio, 1 / ndraws(meg_decoding_gam) ) ) %>%
+    mutate(prob_ratio = pmin(prob_ratio, ndraws(meg_decoding_gam_gaussian_k50) ) ) %>%
+    mutate(prob_ratio = pmax(prob_ratio, 1 / ndraws(meg_decoding_gam_gaussian_k50) ) ) %>%
     ungroup()
 
 # defining a function to find all onset and offset in timeseries
-find_clusters <- function (df, threshold = 20) {
+find_clusters <- function (df, threshold) {
     
     df %>%
         mutate(above_threshold = prob_ratio >= threshold) %>%
         mutate(cluster_change = c(TRUE, diff(above_threshold) != 0) ) %>%
-        filter(above_threshold) %>%
+        dplyr::filter(above_threshold) %>%
         mutate(cluster_id = cumsum(cluster_change) ) %>%
         group_by(cluster_id) %>%
         summarise(
@@ -1491,10 +2063,13 @@ find_clusters <- function (df, threshold = 20) {
 post_prob_ratio_threshold <- 20
 clusters <- find_clusters(prob_y_above_0, threshold = post_prob_ratio_threshold)
     
-# checking model's predictions against raw data
+# defining a colour for the BGAM method
 brms_color <- met.brewer(name = "Johnson", n = 8)[8]
+
+# checking model's predictions against raw data
 plot(
-    conditional_effects(x = meg_decoding_gam),
+    # conditional_effects(x = meg_decoding_gam),
+    conditional_effects(x = meg_decoding_gam_gaussian_k50),
     line_args = list(colour = brms_color, fill = brms_color, alpha = 0.3),
     points = FALSE, plot = FALSE
     )[[1]] +
@@ -1502,8 +2077,12 @@ plot(
     geom_vline(xintercept = 0.0, linetype = 2) +
     annotate(
         geom = "rect",
-        xmin = -Inf, xmax = Inf,
-        ymin = chance_level - sesoi, ymax = chance_level + sesoi,
+        xmin = -Inf,
+        xmax = Inf,
+        ymin = chance_level - sesoi,
+        ymax = chance_level + sesoi,
+        # ymin = chance_level,
+        # ymax = sesoi,
         fill ="orangered",
         alpha = 0.2
         ) +
@@ -1628,7 +2207,7 @@ plot_posterior_odds <- function (model, threshold = 10) {
         # geom_vline(xintercept = true_offset, linetype = 2) +
         geom_line() +
         ylim(c(0, 1) ) +
-        labs(x = "Time (s)", y = expression(Pr(beta>0~"|"~data, model) ) )
+        labs(x = "Time (s)", y = expression(p(beta>0~"|"~data, model) ) )
     
     # plotting it
     ratio_plot <- prob_y_above_baseline %>%
@@ -1657,7 +2236,7 @@ plot_posterior_odds <- function (model, threshold = 10) {
             ) +
         labs(
             x = "Time (s)",
-            y = expression(Pr(beta>0~"|"~data) / (1 - Pr(beta>0~"|"~data) ) )
+            y = expression(p(beta>0~"|"~data) / (1 - p(beta>0~"|"~data) ) )
             )
     
     # plotting both the posterior probability and the ratio...
@@ -1817,558 +2396,220 @@ ggplot(plot_df, aes(x = time, y = mean)) +
   theme_bw()
 ```
 
-\newpage
+## Results
 
-# Results
+@fig-onset-offset shows the group-level average decoding performance through time superimposed with onset and offset estimates from each method. Overall, this figure shows that both the `Raw p-value` and `FDR BH95` methods are extremely lenient, identifying clusters of above-chance decoding accuracy before the onset of the stimulus (false positive) and until the end of the trial. The `Change point` method seems to be the most conservative one, identifying a single cluster spanning from approximately +60ms to +450ms. The `Holm`, `Cluster mass`, `TFCE`, and `BGAM` methods produce roughly similar estimates of onset and offset, ranging from approximately +60ms to +650ms (considering only the first and last identified timesteps), although the `BGAM` method seems to result in fewer clusters.
 
-This section is divided in two parts. First, we present the results from the simulation study, assessing the bias and variance of each method when applied to simulated data in which the ground truth is known. Second, we present the results obtained when applying the different methods to actual MEG data (decoding performance through time), assessing the reliability of the estimates provided by each method.
+```{r fig-onset-offset, echo = FALSE, results = "hide", fig.width = 8, fig.asp = 0.6, fig.cap = "Group-level average decoding performance through time with clusters of higher-than-chance decoding performance as identified by each method [data from @nalborczyk:inprep]."}
+# importing the reshaped MEG decoding results
+decoding_df <- read.csv(file = "data/decoding_results_reshaped.csv") %>%
+    # removing the last participant (to get a round number of participants)
+    mutate(participant_id = cur_group_id(), .by = participant) %>%
+    dplyr::filter(participant_id < 33) %>%
+    select(-participant_id)
 
-## Simulation study (bias and variance)
+# averaging across participants
+decoding_summary_df <- decoding_df %>%
+    summarise(
+        auc_mean = mean(auc),
+        auc_sd = sd(auc),
+        .by = c(participant, time)
+        )
 
-@fig-simulation-results shows a summary of the simulation results, revealing that the proposed approach (`BGAM`) has the lowest median error for both the onset and offset estimates. The `Cluster mass` and `Change point` also have good performance, but surprisingly, the `TFCE` method has relatively bad performance for estimating the effect offset (similar performance to the `Holm` and `FDR BY01` methods). Unsurprisingly, the `FDR BH95` and `Raw p-value` methods show the worst performance.
+# defining the chance level
+chance_level <- 0.5
 
-```{r fig-simulation-results, echo = FALSE, fig.width = 8, fig.asp = 0.5, fig.cap = "Median error and median absolute deviation of the error for the onset (left) and offset (right) estimates according to each method. Methods are ordered from lowest (top) to highest (bottom) median absolute error (separately for the onset and offset estimates)."}
-# loading all RDS files
-files <- list.files(
-    path = "results/errors_cluster_results", 
-    pattern = ".rds", 
-    full.names = TRUE
-    )
+# computing the SESOI as the baseline upper 95% quantile
+full_sesoi <- decoding_summary_df %>%
+    filter(time < 0) %>%
+    summarise(auc_mean = mean(auc_mean), .by = time) %>%
+    summarise(quantile(x = auc_mean, probs = 0.90) ) %>%
+    pull() - chance_level
 
-# sort files numerically by the number in the filename
-files <- files[order(readr::parse_number(files) )]
+# importing Python modules
+use_condaenv("r-reticulate3", conda = "~/miniforge3/bin/conda", required = TRUE)
 
-# read and bind all files, adding a sim_id
-sim_results <- map2_dfr(
-    .x = files,
-    .y = seq_along(files),
-    .f = ~ readRDS(.x)
-    # .f = ~ readRDS(.x) |> mutate(sim_id = .y)
-    # .f = function (file, index) {
-    #     offset <- (index - 1) * splits_per_file
-    #     readRDS(file) %>% mutate(split_id = as.numeric(split_id) ) %>%
-    #         mutate(split_id = split_id + offset) %>%
-    #         mutate(split_id = formatC(x = split_id, width = 3, flag = 0) ) 
-    #     }
+# fitting the final GAM
+full_gam <- brm(
+    auc_mean ~ s(time, bs = "cr", k = 50),
+    data = decoding_summary_df,
+    family = gaussian(),
+    warmup = 2000,
+    iter = 10000,
+    chains = 8,
+    cores = 8,
+    file = "models/full_decoding_gam.rds"
     )
 
 # sanity check
-# n_distinct(sim_results$simulation_id)
+cat("\nNumber of posterior samples in the full model:", ndraws(full_gam) )
 
-# identifying the best brms results
-# sim_results %>%
-#     filter(method == "brms") %>%
-#     pivot_wider(names_from = onset_offset, values_from = value) %>%
-#     summarise(
-#         bias_onset = median(onset - true_onset),
-#         MAE_onset = median(abs(onset - true_onset) ),
-#         variance_onset = var(onset),
-#         bias_offset = median(offset - true_offset),
-#         MAE_offset = median(abs(offset - true_offset) ),
-#         variance_offset = var(offset),
-#         .by = threshold
-#         ) %>%
-#     # arrange(MAE_onset, MAE_offset)
-#     arrange(bias_onset, bias_offset)
+# computing the posterior probability
+prob_y_above_0 <- data.frame(time = unique(full_gam$data$time) ) %>%
+    # retrieving the posterior samples
+    add_epred_draws(object = full_gam) %>%
+    # using a subset of posterior samples
+    # add_epred_draws(object = full_gam, ndraws = n_post_samples) |>
+    # converting to dataframe
+    data.frame() %>%
+    # computing mean posterior probability at the group level
+    group_by(time) %>%
+    summarise(m = mean(.epred > (0 + chance_level + full_sesoi) ) ) %>%
+    # summarise(m = mean(.epred >= full_sesoi) ) |>
+    mutate(prob_ratio = m / (1 - m) ) %>%
+    # ensuring there is no 0 or +Inf values
+    mutate(prob_ratio = pmin(prob_ratio, ndraws(full_gam) ) ) %>%
+    mutate(prob_ratio = pmax(prob_ratio, 1 / ndraws(full_gam) ) ) %>%
+    ungroup()
 
-# plotting the distribution of results
-# sim_results %>%
-#     # keeping only threshold = 20 for BGAM and threshold = 0.05 for frequentist results
-#     filter(threshold %in% c(0.05, 20) ) %>%
-#     mutate(
-#         error = case_when(
-#             # grepl("onset", onset_offset) ~ abs(value - true_onset),
-#             # grepl("offset", onset_offset) ~ abs(value - true_offset)
-#             grepl("onset", onset_offset) ~ value - true_onset,
-#             grepl("offset", onset_offset) ~ value - true_offset
-#             )
-#         ) %>%
-#     mutate(onset_offset = factor(x = onset_offset, levels = c("onset", "offset") ) ) %>%
-#     mutate(
-#         method = factor(
-#             x = method,
-#             levels = c(
-#                 "raw_p", "pval_bh", "pval_by", "pval_holm",
-#                 "cluster_mass", "cluster_tfce", "cpt", "brms"
-#                 ),
-#             labels = c(
-#                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
-#                 "TFCE", "Change point", "BGAM"
-#                 ),
-#             )
-#         ) %>%
-#     mutate(
-#         plot_row = case_when(
-#             method %in% c("Raw p-value", "Holm") ~ 1,
-#             method %in% c("FDR BH95", "FDR BY01") ~ 2,
-#             method %in% c("Cluster mass", "TFCE") ~ 3,
-#             method %in% c("Change point", "BGAM") ~ 4
-#             )
-#         ) %>%
-#     ggplot(
-#         aes(
-#             x = error,
-#             colour = method,
-#             fill = method
-#             )
-#         ) +
-#     geom_vline(xintercept = 0, linetype = 2) +
-#     geom_density(aes(fill = NULL) ) +
-#     # geom_histogram(breaks = "FD") +
-#     facet_grid(plot_row~onset_offset, scales = "free_x") +
-#     theme_light(base_size = 12, base_family = "Open Sans") +
-#     scale_fill_manual(values = met.brewer(name = "Johnson", n = 8) ) +
-#     scale_colour_manual(values = met.brewer(name = "Johnson", n = 8) ) +
-#     labs(x = "Onset/Offset (s)", y = "Density")
+# importing home-made helper functions
+source("code/utils.R")
 
-# computing and plotting bias and variance
-# bias := median(sim_onset_offset_distrib - true_onset_offset)
-# variance := var(sim_onset_offset_distrib - true_onset_offset)
-# sim_results %>%
-#     # keeping only threshold = 20 for BGAM and threshold = 0.05 for frequentist results
-#     filter(threshold %in% c(0.05, 20) ) %>%
-#     mutate(
-#         error = case_when(
-#             # grepl("onset", onset_offset) ~ abs(value - true_onset),
-#             # grepl("offset", onset_offset) ~ abs(value - true_offset)
-#             grepl("onset", onset_offset) ~ value - true_onset,
-#             grepl("offset", onset_offset) ~ value - true_offset
-#             )
-#         ) %>%
-#     group_by(method, onset_offset) %>%
-#     summarise(
-#         median_error = median(error, na.rm = TRUE),
-#         median_abs_error = median(abs(error), na.rm = TRUE),
-#         # variance = var(error, na.rm = TRUE),
-#         variance = var(value, na.rm = TRUE),
-#         mad = mad(value, na.rm = TRUE),
-#         .groups = "drop"
-#         ) %>%
-#     ungroup() %>%
-#     mutate(onset_offset = factor(x = onset_offset, levels = c("onset", "offset") ) ) %>%
-#     mutate(
-#         method = factor(
-#             x = method,
-#             levels = c(
-#                 "raw_p", "pval_bh", "pval_by", "pval_holm",
-#                 "cluster_mass", "cluster_tfce", "cpt", "brms"
-#                 ),
-#             labels = c(
-#                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
-#                 "TFCE", "Change point", "BGAM (new method)"
-#                 ),
-#             )
-#         ) %>%
-#     ggplot(
-#         aes(
-#             x = median_error,
-#             # y = mad,
-#             # y = median_abs_error,
-#             # y = median_abs_error,
-#             # x = median_abs_error,
-#             y = variance,
-#             colour = method,
-#             fill = method
-#             )
-#         ) +
-#     geom_vline(xintercept = 0, linetype = 2) +
-#     # geom_errorbar(
-#     #     aes(
-#     #         xmin = median_error - mad, xmax = median_error + mad,
-#     #         #ymin = median_abs_error - mad, ymax = median_abs_error + mad
-#     #         )
-#     #     ) +
-#     #     geom_errorbar(
-#     #     aes(
-#     #         #xmin = median_error - mad, xmax = median_error + mad,
-#     #         ymin = median_abs_error - mad, ymax = median_abs_error + mad
-#     #         )
-#     #     ) +
-#     geom_point(
-#         size = 2,
-#         pch = 21,
-#         colour = "white",
-#         show.legend = FALSE
-#         ) +
-#     geom_label_repel(
-#         aes(label = method),
-#         colour = "white",
-#         size = 3,
-#         segment.color = NA,
-#         show.legend = FALSE
-#         ) +
-#     # scale_y_log10() +
-#     facet_wrap(~onset_offset) +
-#     scale_fill_manual(values = met.brewer(name = "Johnson", n = 8) ) +
-#     scale_colour_manual(values = met.brewer(name = "Johnson", n = 8) ) +
-#     # labs(x = "Median error (s)", y = "Variance (log-scale)")
-#     # labs(x = "Median error (s)", y = "Median absolute error (log-scale)")
-#     labs(x = "Median absolute error (s)", y = "Variance (log-scale)")
+# importing Python modules
+np <- import("numpy")
+mne <- import("mne")
+        
+# defining alpha and posterior odds thresholds        
+alpha_level <- 0.05
+post_prob_ratio_threshold <- 20
 
-# or plotting only the error in descending order
-sim_results %>%
-    # keeping only threshold = 10 for BGAM and threshold = 0.05 for frequentist results
-    filter(threshold %in% c(0.05, 20) ) %>%
-    # filter(threshold %in% c(0.05, 10) ) %>%
-    mutate(
-        error = case_when(
-            # grepl("onset", onset_offset) ~ abs(value - true_onset),
-            # grepl("offset", onset_offset) ~ abs(value - true_offset)
-            grepl("onset", onset_offset) ~ value - true_onset,
-            grepl("offset", onset_offset) ~ value - true_offset
-            )
-        ) %>%
-    # converting to ms
-    # mutate(error = error * 1e3) %>%
-    group_by(method, onset_offset) %>%
-    summarise(
-        mean_error = mean(error, na.rm = TRUE),
-        median_error = median(error, na.rm = TRUE),
-        median_abs_error = median(abs(error), na.rm = TRUE),
-        variance = var(error, na.rm = TRUE),
-        # variance = var(value, na.rm = TRUE),
-        sem = sd(value, na.rm = TRUE) / sqrt(n() ),
-        mad = mad(value, na.rm = TRUE),
-        .groups = "drop"
-        ) %>%
-    ungroup() %>%
-    mutate(onset_offset = factor(x = onset_offset, levels = c("onset", "offset") ) ) %>%
-    mutate(
-        method = factor(
-            x = method,
-            levels = c(
-                "raw_p", "pval_bh", "pval_by", "pval_holm",
-                "cluster_mass", "cluster_tfce", "cpt", "brms"
-                ),
-            labels = c(
-                "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
-                "TFCE", "Change point", "BGAM (new method)"
-                ),
-            )
-        ) %>%
-    mutate(
-        method_reordered = tidytext::reorder_within(
-            x = method,
-            # by = 1 / error,
-            # fun = median,
-            # by = 1 / abs(median_error),
-            by = 1 / median_abs_error,
-            # by = 1 / abs(mean_error),
-            within = onset_offset
-            )
-        ) %>%
-    # mutate(
-    #     method_reordered = fct_reorder(
-    #         method, error, .fun = ~abs(median(.x) ), .na_rm = TRUE
-    #         )
-    #     ) %>%
-    # arrange(desc(error) ) %>%
-    # arrange(error) %>%
-    # head()
-    ggplot(
-        aes(
-            x = median_error,
-            # x = error,
-            xmin = median_error - mad,
-            xmax = median_error + mad,
-            # x = mean_error,
-            # xmin = mean_error - variance,
-            # xmax = mean_error + variance,
-            y = method_reordered,
-            colour = method,
-            fill = method
-            )
-        ) +
-    geom_vline(xintercept = 0, linetype = 2) +
-    geom_pointrange(
-        size = 0.25,
-        linewidth = 0.75,
-        show.legend = FALSE
-        ) +
-    # stat_histinterval(
-    #     # breaks = "FD",
-    #     # n = 1e3,
-    #     # point_interval = "median_qi",
-    #     # .width = c(0.5, 0.95),
-    #     .width = 0.1,
-    #     # colour = "black",
-    #     # slab_colour = "white",
-    #     # slab_linewidth = 0,
-    #     slab_alpha = 0.8,
-    #     # fill = "steelblue"
-    #     show.legend = FALSE
-    #     ) +
-    facet_wrap(~onset_offset, scales = "free") +
-    scale_y_reordered() +
-    scale_fill_manual(values = met.brewer(name = "Johnson", n = 8) ) +
-    scale_colour_manual(values = met.brewer(name = "Johnson", n = 8) ) +
-    labs(
-        x = "Estimation error (s)",
-        # x = "Mean error (s)",
-        y = "Method"
-        )
-
-# saving the plot
-# ggsave(
-#     # filename = "figures/simulation_results_median_error_variance.png",
-#     # filename = "figures/simulation_results_bias_mae.png",
-#     filename = "figures/simulation_results_mae_variance.png",
-#     width = 12, height = 6, dpi = 300,
-#     device = "png"
-#     )
-
-# plotting the distribution of results
-# sim_results %>%
-#     # keeping only threshold = 10 for BGAM and threshold = 0.05 for frequentist results
-#     filter(threshold %in% c(0.05, 20) ) %>%
-#     mutate(
-#         error = case_when(
-#             # grepl("onset", onset_offset) ~ abs(value - true_onset),
-#             # grepl("offset", onset_offset) ~ abs(value - true_offset)
-#             grepl("onset", onset_offset) ~ value - true_onset,
-#             grepl("offset", onset_offset) ~ value - true_offset
-#             )
-#         ) %>%
-#     # converting to ms
-#     # mutate(error = error * 1e3) %>%
-#     # group_by(method, onset_offset) %>%
-#     # summarise(
-#     #     mean_error = mean(error, na.rm = TRUE),
-#     #     median_error = median(error, na.rm = TRUE),
-#     #     median_abs_error = median(abs(error), na.rm = TRUE),
-#     #     variance = var(error, na.rm = TRUE),
-#     #     # variance = var(value, na.rm = TRUE),
-#     #     sem = sd(value, na.rm = TRUE) / sqrt(n() ),
-#     #     mad = mad(value, na.rm = TRUE),
-#     #     .groups = "drop"
-#     #     ) %>%
-#     # ungroup() %>%
-#     mutate(onset_offset = factor(x = onset_offset, levels = c("onset", "offset") ) ) %>%
-#     mutate(
-#         method = factor(
-#             x = method,
-#             levels = c(
-#                 "raw_p", "pval_bh", "pval_by", "pval_holm",
-#                 "cluster_mass", "cluster_tfce", "cpt", "brms"
-#                 ),
-#             labels = c(
-#                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
-#                 "TFCE", "Change point", "BGAM (new method)"
-#                 ),
-#             )
-#         ) %>%
-#     mutate(
-#         method_reordered = tidytext::reorder_within(
-#             x = method,
-#             by = abs(error),
-#             fun = median,
-#             # by = 1 / abs(median_error),
-#             # by = 1 / abs(mean_error),
-#             within = onset_offset
-#             )
-#         ) %>%
-#     # mutate(
-#     #     method_reordered = fct_reorder(
-#     #         method, error, .fun = ~abs(median(.x) ), .na_rm = TRUE
-#     #         )
-#     #     ) %>%
-#     # arrange(desc(error) ) %>%
-#     # arrange(error) %>%
-#     # head()
-#     ggplot(
-#         aes(
-#             # x = median_error,
-#             x = error,
-#             # xmin = median_error - mad,
-#             # xmax = median_error + mad,
-#             # x = mean_error,
-#             # xmin = mean_error - variance,
-#             # xmax = mean_error + variance,
-#             y = method_reordered,
-#             colour = method,
-#             fill = method
-#             )
-#         ) +
-#     geom_vline(xintercept = 0, linetype = 2) +
-#     # geom_pointrange(
-#     #     size = 0.25,
-#     #     linewidth = 0.75,
-#     #     show.legend = FALSE
-#     #     ) +
-#     stat_slabinterval(
-#         n = 200,
-#         normalize = "groups",
-#         point_interval = "median_qi",
-#         # .width = c(0.1, 0.9),
-#         # .width = 0.2,
-#         .width = 0,
-#         interval_size_range = c(1, 1),
-#         fatten_point = 1.25,
-#         # slab_colour = "white",
-#         # slab_linewidth = 0,
-#         # density = "unbounded",
-#         slab_alpha = 0.5,
-#         show.legend = FALSE
-#         ) +
-#     facet_wrap(~onset_offset, scales = "free") +
-#     scale_y_reordered() +
-#     scale_fill_manual(values = met.brewer(name = "Johnson", n = 8) ) +
-#     scale_colour_manual(values = met.brewer(name = "Johnson", n = 8) ) +
-#     labs(
-#         x = "Estimation error (s)",
-#         y = "Method"
-#         )
-```
-
-Results are further summarised in @tbl-simulation-results, which shows that the `BGAM` is almost perfectly unbiased (i.e., it has a bias of approximately 2ms for the onset and 4ms for the offset). The `Bias` column shows that all methods tend to estimate the onset later than the true onset and to estimate the offset earlier than the true offset. As can be seen from this table, the `BGAM` has the best performance on all included metrics.
-
-```{r tbl-simulation-results, eval = TRUE, echo = FALSE, results = "asis"}
-#| tbl-cap: "Summary statistics of the onset and offset estimates for each method (in ms, ordered by the MAE) according to the main simulation study."
-# summarising the results
-sim_results_summary <- sim_results %>%
-    # keeping only threshold = 20 for BGAM and threshold = 0.05 for frequentist results
-    filter(threshold %in% c(0.05, 20) ) %>%
-    # filter(threshold %in% c(0.05, 10) ) %>%
-    mutate(
-        error = case_when(
-            # grepl("onset", onset_offset) ~ value - true_onset,
-            # grepl("offset", onset_offset) ~ value - true_offset
-            grepl("onset", onset_offset) ~ value * 1e3 - true_onset * 1e3,
-            grepl("offset", onset_offset) ~ value * 1e3 - true_offset * 1e3
-            )
-        ) %>%
-    # converting to ms
-    # mutate(error = error * 1e3) %>%
-    group_by(method, onset_offset) %>%
-    summarise(
-        # mean_error = mean(error, na.rm = TRUE),
-        median_error = median(error, na.rm = TRUE),
-        # mean_abs_error = mean(abs(error), na.rm = TRUE),
-        median_abs_error = median(abs(error), na.rm = TRUE),
-        rmse = sqrt(mean(error)^2),
-        variance = var(error, na.rm = TRUE),
-        # variance = var(value, na.rm = TRUE),
-        mad = mad(error, na.rm = TRUE),
-        .groups = "drop"
-        ) %>%
-    ungroup() %>%
-    mutate(
-        method = factor(
-            x = method,
-            levels = c(
-                "raw_p", "pval_bh", "pval_by", "pval_holm",
-                "cluster_mass", "cluster_tfce", "cpt", "brms"
-                ),
-            labels = c(
-                "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
-                "TFCE", "Change point", "BGAM (new method)"
-                ),
-            )
-        ) %>%
-    mutate(
-        onset_offset = factor(x = onset_offset, levels = c("onset", "offset") )
-        ) %>%
+# finding clusters
+onset_offset_brms <- find_clusters(
+    data = prob_y_above_0 %>% select(time, value = prob_ratio),
+    threshold = post_prob_ratio_threshold
+    ) %>%
+    mutate(split_id = "full") %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "brms") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
     data.frame()
 
-# creating the table
-sim_results_summary %>%
+# converting data to a matrix (for later use in MNE functions)
+data_matrix <- matrix(
+    data = decoding_summary_df$auc_mean,
+    ncol = length(unique(decoding_summary_df$time) ),
+    byrow = TRUE
+    )
+
+# massive univariate t-tests
+tests_results <- decoding_summary_df %>%
+    group_by(time) %>%
+    summarise(
+        tval = t.test(x = auc_mean, mu = chance_level)$statistic^2,
+        pval = t.test(x = auc_mean, mu = chance_level)$p.value
+        ) %>%
     mutate(
-        onset_offset = factor(
-            x = onset_offset,
-            levels = c("offset", "onset")
-            )
+        pval_bh = p.adjust(p = pval, method = "BH"),
+        pval_by = p.adjust(p = pval, method = "BY"),
+        pval_holm = p.adjust(p = pval, method = "holm")
         ) %>%
-    # arrange(abs(median_error) ) %>%
-    # arrange(abs(mean_error) ) %>%
-    arrange(median_abs_error) %>%
-    group_by(onset_offset) %>%
-    gt() %>%
-    fmt_number(
-        columns = everything(),
-        decimals = 2
-        ) %>%
-    cols_align(
-        align = "center",
-        columns = everything()
-        ) %>%
-    cols_align(
-        align = "left",
-        columns = method
-        ) %>%
-    cols_label(
-        method = "",
-        # mean_error = "Bias_mean",
-        median_error = "Bias",
-        median_abs_error = "MAE",
-        # mean_abs_error = "MAE",
-        rmse = "RMSE",
-        variance = "Variance",
-        mad = "MAD"
-        ) %>%
-    tab_options(
-        table.align = "center",
-        # table.width = "75%",
-        table.font.size = 12
-        ) %>%
-    as_latex()
-```
+    ungroup()
 
-\newpage
+# using the binary segmentation method to identify onsets and offsets
+res <- cpt.meanvar(data = tests_results$tval, method = "BinSeg", Q = 2)
 
-## Application to actual MEG data (reliability)
+onset_offset_cpt <- data.frame(
+    split_id = "full",
+    cluster_id = 1,
+    onset = tests_results$time[res@cpts[1]],
+    offset = tests_results$time[res@cpts[2]]
+    ) %>%
+    mutate(method = "cpt") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
 
-@fig-onset-offset shows the group-level average decoding performance through time with onset and offset estimates from each method. Overall, this figure shows that both the `Raw p-value` and `FDR BH95` methods are extremely lenient, considering that the decoding performance is above chance before the onset of the stimulus (false positive) and until the end of the trial. The `Change point` and `Cluster mass` methods seem the most conservative methods, identifying a time window from approximately +60ms to +500ms. The `Holm`, `TFCE`, and `BGAM` methods produce similar estimates of onset and offset, ranging from approximately +60ms to +650ms, although the `BGAM` method seems to result in fewer clusters.[^2]
+# finding clusters
+onset_offset_raw_p <- find_clusters(
+    data = tests_results %>% mutate(pval = pval * (-1) ) |> select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = "full") %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "raw_p") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
 
-[^2]: It should be noted that although each method can produce several "clusters" of timesteps, we only considered the first (onset) and last (offset) timesteps identified by each method to compute the estimation error.
+onset_offset_pval_bh <- find_clusters(
+    data = tests_results %>% mutate(pval = pval_bh * (-1) ) |> select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = "full") %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "pval_bh") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
 
-```{r fig-onset-offset, echo = FALSE, fig.width = 8, fig.asp = 0.6, fig.cap = "Group-level average decoding performance through time with onset and offset estimates for each method [data from @nalborczyk:inprep]."}
-# importing results
-# reliability_results <- readRDS(file = "results/reliability_results_100splits.rds")
+onset_offset_pval_by <- find_clusters(
+    data = tests_results %>% mutate(pval = pval_by * (-1) ) |> select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = "full") %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "pval_by") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
 
-# loading all RDS files
-files <- list.files(
-    path = "results/reliability_cluster_results",
-    pattern = ".rds", 
-    full.names = TRUE
+onset_offset_pval_holm <- find_clusters(
+    data = tests_results %>% mutate(pval = pval_holm * (-1) ) |> select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = "full") %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "pval_holm") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
+
+# running the MNE cluster-based permutation
+p_values_cluster_mass <- freq_stats_cluster_matrix(
+    X = data_matrix - chance_level,
+    timesteps = unique(decoding_summary_df$time),
+    cluster_type = "mass",
+    alpha_level = alpha_level,
+    verbose = FALSE
+    )
+p_values_tfce <- freq_stats_cluster_matrix(
+    X = data_matrix - chance_level,
+    timesteps = unique(decoding_summary_df$time),
+    cluster_type = "tfce",
+    alpha_level = alpha_level,
+    verbose = FALSE
     )
 
-# sorting files numerically by the number in the filename
-files <- files[order(readr::parse_number(files) )]
+onset_offset_cluster_mass <- find_clusters(
+    data = p_values_cluster_mass %>% mutate(pval = pval*(-1) ) %>% select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = "full") %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "cluster_mass") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
 
-# reading and binding all files, adding a sim_id
-reliability_results <- map2_dfr(
-    .x = files,
-    .y = seq_along(files),
-    .f = ~ readRDS(.x)
-    # .f = ~ readRDS(.x) |> mutate(sim_id = .y)
-    # .f = function (file, index) {
-    #     offset <- (index - 1) * splits_per_file
-    #     readRDS(file) %>% mutate(split_id = as.numeric(split_id) ) %>%
-    #         mutate(split_id = split_id + offset) %>%
-    #         mutate(split_id = formatC(x = split_id, width = 3, flag = 0) ) 
-    #     }
-    )
+onset_offset_cluster_tfce <- find_clusters(
+    data = p_values_tfce %>% mutate(pval = pval*(-1) ) %>% select(time, value = pval),
+    threshold = -alpha_level
+    ) %>%
+    mutate(split_id = "full") %>%
+    select(split_id, cluster_id, onset = cluster_onset, offset = cluster_offset) %>%
+    mutate(method = "cluster_tfce") %>%
+    pivot_longer(cols = onset:offset) %>%
+    select(split_id, method, cluster_id, onset_offset = name, value) %>%
+    data.frame()
 
-# sanity checks
-# unique(reliability_results$split_id)
-# n_distinct(reliability_results$split_id)
-
-# extracting the full data estimates
-full_reliability_results <- reliability_results %>%
-    # filter(split_id == max(split_id) ) %>%
-    # filter(str_detect(string = split_id, pattern = "_s051") ) %>%
-    filter(split_id == "a001_s051") %>%
-    # keeping only the first and last timestep
-    # group_by(split_id, method, onset_offset) %>%
-    # summarise(
-    #     value = if (onset_offset[1] == "onset") min(value) else max(value),
-    #     .groups = "drop"
-    #     ) %>%
-    # ungroup() %>%
-    # pivot_longer(cols = -split_id, names_to = "measure", values_to = "value") %>%
-    # data.frame() %>%
-    # select(-split_id) %>%
-    # separate(measure, into = c("type", "method"), sep = "_", extra = "merge") %>%
+# binding all results together
+full_reliability_results <- bind_rows(
+    onset_offset_brms, onset_offset_raw_p, onset_offset_pval_bh,
+    onset_offset_pval_by, onset_offset_pval_holm, onset_offset_cpt,
+    onset_offset_cluster_mass, onset_offset_cluster_tfce
+    ) %>%
+    mutate(sesoi = full_sesoi) %>%
     pivot_wider(names_from = onset_offset, values_from = value) %>%
     mutate(
         method = factor(
@@ -2379,11 +2620,114 @@ full_reliability_results <- reliability_results %>%
                 ),
             labels = c(
                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
-                "TFCE", "Change point", "BGAM (new method)"
+                "TFCE", "Change point", "BGAM (our method)"
                 )
             )
         ) %>%
     mutate(y_offset = 0.5 - as.numeric(factor(method) ) * 0.01 - 0.01)
+
+# importing results
+# reliability_results <- readRDS(file = "results/reliability_results_100splits.rds")
+
+# loading all RDS files
+# files <- list.files(
+#     path = "results/reliability_cluster_results",
+#     pattern = ".rds", 
+#     full.names = TRUE
+#     )
+# files <- list.files(
+#     # path = "reliability_cluster_results",
+#     path = "reliability_jaccard_cluster_results",
+#     pattern = ".rds", 
+#     full.names = TRUE
+#     )
+
+# importing the data splits
+# data_splits <- list.files(
+#     path = "reliability_data_splits",
+#     pattern = ".csv",
+#     full.names = TRUE
+#     )
+
+# sorting files numerically by the number in the filename
+# files <- files[order(readr::parse_number(files) )]
+# data_splits <- data_splits[order(readr::parse_number(data_splits) )]
+
+# reading and binding all files
+# reliability_results <- map2_dfr(
+#     .x = files,
+#     .y = seq_along(files),
+#     .f = ~ readRDS(.x)
+#     # .f = ~ readRDS(.x) |> mutate(sim_id = .y)
+#     # .f = function (file, index) {
+#     #     offset <- (index - 1) * splits_per_file
+#     #     readRDS(file) %>% mutate(split_id = as.numeric(split_id) ) %>%
+#     #         mutate(split_id = split_id + offset) %>%
+#     #         mutate(split_id = formatC(x = split_id, width = 3, flag = 0) ) 
+#     #     }
+#     )
+
+# checking errors
+# reliability_results %>%
+#     filter(!is.na(error) )
+
+# removing NAs
+# reliability_results <- reliability_results %>%
+#     # select(-error, -stringAsFactors) %>%
+#     na.omit()
+
+# sanity checks (N=1122)
+# unique(reliability_results$split_id)
+# n_distinct(reliability_results$split_id)
+
+# reading and binding all files, adding a split_id
+# splits_results <- map2_dfr(
+#     .x = data_splits,
+#     .y = seq_along(data_splits),
+#     .f = ~ read.csv(.x)
+#     ) %>%
+#     # mutate(array_id = as.numeric(array_id) ) %>%
+#     mutate(split_id = paste(array_id, sprintf("s%03d", split_number), sep = "_") ) %>%
+#     # removing unused columns
+#     select(-split_number, -array_id)
+
+# or reading splits list directly
+# splits_results <- read.csv(file = "uniform_jaccard_data_splits.csv")
+# splits_results <- read.csv(file = "uniform_jaccard_data_splits_100pairs.csv")
+# splits_results <- read.csv(file = "data/uniform_jaccard_data_splits_1000pairs.csv")
+
+# extracting the full data estimates
+# full_reliability_results <- reliability_results %>%
+#     # filter(split_id == max(split_id) ) %>%
+#     # filter(str_detect(string = split_id, pattern = "_s051") ) %>%
+#     # dplyr::filter(split_id == "a001_s051") %>%
+#     dplyr::filter(split_id == "1_full") %>%
+#     # keeping only the first and last timestep
+#     # group_by(split_id, method, onset_offset) %>%
+#     # summarise(
+#     #     value = if (onset_offset[1] == "onset") min(value) else max(value),
+#     #     .groups = "drop"
+#     #     ) %>%
+#     # ungroup() %>%
+#     # pivot_longer(cols = -split_id, names_to = "measure", values_to = "value") %>%
+#     # data.frame() %>%
+#     # select(-split_id) %>%
+#     # separate(measure, into = c("type", "method"), sep = "_", extra = "merge") %>%
+#     pivot_wider(names_from = onset_offset, values_from = value) %>%
+#     mutate(
+#         method = factor(
+#             x = method,
+#             levels = c(
+#                 "raw_p", "pval_bh", "pval_by", "pval_holm", "cluster_mass",
+#                 "cluster_tfce", "cpt", "brms"
+#                 ),
+#             labels = c(
+#                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
+#                 "TFCE", "Change point", "BGAM (our method)"
+#                 )
+#             )
+#         ) %>%
+#     mutate(y_offset = 0.5 - as.numeric(factor(method) ) * 0.01 - 0.01)
 
 # checking model's predictions against raw data
 decoding_df %>%
@@ -2435,11 +2779,434 @@ decoding_df %>%
 #     )
 ```
 
+We then assessed the sensitivity of the various methods using a form of permutation-based sensitivity study, which consisted of the following steps. First, we created a large number of split halves of the data, that is, subsets of the dataset containing only 16 out of 32 participants. For each possible pair of subsets, we have 16 possible levels of overlap/similarity that can be quantified using the Jaccard index, ranging from 0 (perfectly disjoints subsets) to $\approx0.88$ (identical subsets except one participant). For each of these 16 levels of Jaccard similarity, we created 1,000 pairs of subsets, resulting in 16,000 pairs of subsets in total. For each of these pairs, we estimated the onset and offset according to each method and computed the absolute difference in onset/offset estimates. Finally, we estimated the Spearman's rank correlation coefficient (which quantifies the strength of a monotonic relation between two variables) between the Jaccard similarity and the absolute difference in onset/offset estimates. The rational for this procedure is that sensitive methods should produce similar onset/offset estimates for similar subsets and dissimilar onset/offset estimates for dissimilar subsets. The results of this procedure are summarised in @fig-splits-similarity.
+
+<!--
+
+Finally, we fitted a polynomial (cubic) regression to predict the absolute difference in onset/offset estimates according to the Jaccard similarity. This analysis allowed us to disentangle two properties of each method: i) whether it produces similar onset/offset estimates for similar subsets (in the limit case where subsets are identical, this is reflected by the intercept parameter), and ii) how sensitive each method is to variation in subsets' similarity (which is reflected by the two slope parameters, for the linear and cubic terms, respectively). In simple terms, sensitive methods should produce similar onset/offset estimates for similar subsets and dissimilar onset/offset estimates for dissimilar subsets. The results of this procedure are summarised in @fig-splits-similarity.
+
+This figure reveals that the `BGAM` *onset and offset* estimates on each split are the closest to the estimates from the full dataset on average (0ms difference for the onset estimate and 5ms difference for the offset estimate). The `Raw p-value` method has similar performance for the offset, but given the aberrant estimates it produces (cf. @fig-onset-offset), the fact that it is consistent between data splits and the full dataset is not convincing on its own. The `Change point` method also has a very good performance (i.e., very low difference between split estimates and full estimates), but produces too short cluster of significant decoding performance (cf. @fig-onset-offset).[^3] Overall, the figure reveals that for all other methods, split datasets produce later onset estimates and earlier offset estimates (compared to the estimates from the model fitted on the full dataset). These results highlight some desirable properties for a method aiming to precisely and reliably estimate the onset and offset of M/EEG effects, namely, it should i) have good asymptotic properties on simulated data, ii) provide sensible identified clusters in actual data, and iii) provide reliable/stable estimates across various partitions of the data. All these desiderata seem to be fulfilled by the BGAM approach.
+
+-->
+
+```{r fig-splits-similarity, eval = TRUE, echo = FALSE, fig.width = 12, fig.asp = 0.6, fig.cap = "Relation between data subsets' dissimilarity (x-axis) and difference in onset (blue) and offset (orange) estimates (y-axis) according to each method."}
+# reading splits list directly
+# splits_results <- read.csv(file = "uniform_jaccard_data_splits.csv")
+# splits_results <- read.csv(file = "uniform_jaccard_data_splits_100pairs.csv")
+splits_results <- read.csv(file = "data/uniform_jaccard_data_splits_1000pairs.csv")
+
+# listing all RDS files
+files <- list.files(
+    path = "results/reliability_jaccard_cluster_results",
+    pattern = ".rds", 
+    full.names = TRUE
+    )
+
+# sorting files numerically by the number in the filename
+files <- files[order(readr::parse_number(files) )]
+
+# reading and binding all files
+reliability_results <- map2_dfr(
+    .x = files,
+    .y = seq_along(files),
+    .f = ~ readRDS(.x)
+    )
+
+# checking errors
+# reliability_results %>%
+#     filter(!is.na(error) )
+
+# removing NAs
+reliability_results <- reliability_results %>%
+    # select(-error, -stringAsFactors) %>%
+    na.omit()
+
+# This analysis assesses whether the method is "self-consistent" across data splits...
+# Step 1: creating a list of participants per split_id
+# split_participants <- splits_results %>%
+#     rename(split_id = split_number) %>%
+#     group_by(split_id) %>%
+#     dplyr::filter(group == "A") %>%
+#     summarise(participants = list(participant) ) %>%
+#     ungroup()
+
+# Step 2: creating all pairwise combinations of split_ids
+# split_pairs <- expand.grid(
+#     split_id1 = split_participants$split_id,
+#     split_id2 = split_participants$split_id,
+#     stringsAsFactors = FALSE
+#     ) %>%
+#     # avoiding duplicates and self-comparison
+#     dplyr::filter(split_id1 < split_id2) 
+
+# Step 3: joining the participant lists for each pair
+# split_pairs <- split_pairs %>%
+#     left_join(split_participants, by = c("split_id1" = "split_id") ) %>%
+#     rename(participants1 = participants) %>%
+#     left_join(split_participants, by = c("split_id2" = "split_id") ) %>%
+#     rename(participants2 = participants)
+
+# Step 4: computing overlap as size of intersection / union
+# see also https://www.rdocumentation.org/packages/genieclust/versions/1.1.6/topics/compare_partitions
+# split_pairs <- split_pairs %>%
+#     mutate(
+#         intersection = map2_int(participants1, participants2, ~length(intersect(.x, .y) ) ),
+#         union = map2_int(participants1, participants2, ~length(union(.x, .y) ) ),
+#         jaccard_similarity = intersection / union,
+#         # jaccard_similarity = map2_dbl(participants1, participants2, ~jaccard(.x, .y) )
+#         # ari = map2(participants1, participants2, ~ARI(.x[[1]], .y[[1]]) ),
+#         # nmi = map2_dbl(participants1, participants2, ~NMI(.x[[1]], .y[[1]]) ),
+#         # ami = map2_dbl(participants1, participants2, ~AMI(.x[[1]], .y[[1]]), .progress = TRUE)
+#         )
+
+# checking the results
+# sort(unique(split_pairs$intersection) )
+# hist(split_pairs$intersection)
+
+# plotting it
+# split_pairs %>%
+#     ggplot(aes(x = intersection, y = jaccard_similarity) ) +
+#     geom_point() +
+#     geom_smooth(method = "lm") +
+#     theme_bw()
+
+##########################################################
+# now computing similarity of onset and offset estimates #
+##########################################################
+
+# Step 1: creating a list of participants per split_id
+# reliability_splits <- reliability_results %>%
+#     # filter(str_detect(string = split_id, pattern = "full", negate = TRUE) ) %>%
+#     # mutate(split_id = str_sub(string = split_id, start = 6, end = -1) )
+#     dplyr::filter(split_id != "a001_s051") %>%
+#     # keeping only the first and last timestep
+#     group_by(split_id, method, onset_offset) %>%
+#     summarise(
+#         value = if (onset_offset[1] == "onset") min(value) else max(value),
+#         .groups = "drop"
+#         ) %>%
+#     ungroup()
+
+# Step 2: creating all pairwise combinations of split_ids
+# and computing the absolute difference of estimated onset/offset
+# reliability_splits_results <- reliability_splits %>%
+#   # joining the data frame with itself by method and onset_offset
+#   inner_join(
+#       reliability_splits,
+#       by = c("method", "onset_offset"),
+#       suffix = c("_1", "_2")
+#       ) %>%
+#   # keeping only unique pairs (avoid self-pairs and duplicates)
+#   dplyr::filter(split_id_1 < split_id_2) %>%
+#   # computing the absolute difference in value
+#   mutate(value_diff = abs(value_1 - value_2) ) %>%
+#   select(method, onset_offset, split_id_1, split_id_2, value_diff)
+
+# joining these results with splits similarity
+# head(reliability_splits_results)
+# full_df <- split_pairs %>%
+#     select(split_id_1 = split_id1, split_id_2 = split_id2, jaccard_similarity) %>%
+#     # head()
+#     inner_join(reliability_splits_results, by = c("split_id_1", "split_id_2") )
+
+# checking similarity values and effectives
+# full_df %>%
+#     summarise(
+#         effective_sim = n(),
+#         .by = c(onset_offset, method, jaccard_similarity)
+#         ) %>%
+#     arrange(jaccard_similarity)
+
+########################################################################
+# or working directly from pre-existing jaccard similarity csv file
+######################################################################
+
+reliability_results2 <- reliability_results %>%
+    # dplyr::filter(str_detect(string = split_id, pattern = "full", negate = TRUE) ) %>%
+    # keeping only the first and last timestep
+    group_by(split_id, method, onset_offset) %>%
+    summarise(
+        value = if (onset_offset[1] == "onset") min(value) else max(value),
+        .groups = "drop"
+        ) %>%
+    ungroup() %>%
+    mutate(split_id = str_sub(string = split_id, start = 6, end = -3) ) %>%
+    # removing split with error
+    # filter(split_id != "s00171") %>%
+    group_by(split_id, method, onset_offset) %>%
+    mutate(value_diff = abs(diff(value) ) ) %>%
+    # mutate(value_diff = diff(value) ) %>%
+    # mutate(value_diff = diff(value)^2) %>%
+    # rmse = sqrt(mean(error)^2),
+    ungroup() %>%
+    select(-value) %>%
+    distinct()
+
+splits_results2 <- splits_results %>%
+    mutate(split_id = formatC(x = split_id, width = 5, flag = 0) ) %>%
+    mutate(split_id = paste0("s", split_id) ) %>%
+    select(-group, -participant) %>%
+    distinct()
+
+full_df <- full_join(reliability_results2, splits_results2, by = "split_id")
+
+# sanity checks
+# table(full_df$jaccard)
+# unique(full_df$jaccard)
+# n_distinct(full_df$jaccard)
+# unique(splits_results2$jaccard)
+# unique(reliability_results2$split_id)
+
+# find rows with NAs
+# full_df[!complete.cases(full_df), ] %>% data.frame()
+# reliability_results2 %>% filter(split_id == "s00088")
+# reliability_results %>% filter(str_detect(string = split_id, pattern = "s00088") )
+
+# custom function to implement min-max scaling (i.e., between 0 and 1)
+# minMax <- function (x) {
+#     
+#     std_score <- (x - min(x) ) / (max(x) - min(x) )
+#     
+#     return (std_score)
+#     
+# }
+
+# polynomial regression degree
+# poly_reg_degree <- 2
+
+# or fitting a GAM for each combination
+# library(ggpmisc)
+# library(broom)
+# library(glue)
+# library(mgcv)
+# 
+# # 1. Nest data by method & onset_offset
+# model_df <- full_df %>%
+#     na.omit() %>%
+#     group_by(method, onset_offset, jaccard) %>%
+#     summarise(
+#         mean_value_diff = mean(x = value_diff, na.rm = TRUE),
+#         sem = sd(x = value_diff, na.rm = TRUE) / sqrt(n() )
+#         ) %>%
+#     ungroup() %>%
+#     mutate(
+#         method = factor(
+#             x = method,
+#             levels = c(
+#                 "raw_p", "pval_bh", "pval_by", "pval_holm", "cluster_mass",
+#                 "cluster_tfce", "cpt", "brms"
+#                 ),
+#             labels = c(
+#                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
+#                 "TFCE", "Change point", "BGAM (our method)"
+#                 )
+#             )
+#         ) %>%
+#     # mutate(jaccard = 1-jaccard) %>%
+#     filter(!is.na(mean_value_diff), !is.na(jaccard) ) %>%
+#     group_by(method, onset_offset) %>%
+#     nest()
+# 
+# # 2. Fit a GAM to each subset
+# model_df <- model_df %>%
+#     mutate(
+#         gam_model = map(
+#             data, ~ gam(mean_value_diff ~ s(jaccard),
+#                         # family = Gamma(link = "log"),
+#                         data = .x)
+#             )
+#         )
+# 
+# # 3. Generate pretty label with edf and R² for plotting
+# model_df <- model_df %>%
+#     mutate(
+#         eq_label = map2_chr(
+#             gam_model,
+#             data,
+#             ~ {
+#                 r2 <- summary(.x)$r.sq
+#                 edf <- summary(.x)$s.table[, "edf"] %>% round(2)
+#                 glue("edf = {edf}, R² = {round(r2, 2)}")
+#                 })
+#         )
+# 
+# # 4. Create predictions for plotting
+# model_df <- model_df %>%
+#   mutate(
+#     preds = map2(data, gam_model, ~ {
+#       tibble(
+#         jaccard = seq(min(.x$jaccard), max(.x$jaccard), length.out = 100)
+#       ) %>%
+#         mutate(mean_value_diff = predict(.y, newdata = ., type = "response"))
+#     })
+#   )
+# 
+# # 5. Unnest everything for ggplot
+# plot_data <- model_df %>%
+#   select(method, onset_offset, eq_label, preds) %>%
+#   unnest(preds)
+# 
+# # 6. Create base plot with data points and fitted GAM lines
+# full_df %>%
+#     na.omit() %>%
+#     # nrow()
+#     # dplyr::filter(jaccard < 1 & jaccard > 0) %>%
+#     group_by(method, onset_offset, jaccard) %>%
+#     summarise(
+#         mean_value_diff = mean(x = value_diff, na.rm = TRUE),
+#         # mean_value_diff = sqrt(mean(x = value_diff, na.rm = TRUE) ),
+#         sem = sd(x = value_diff, na.rm = TRUE) / sqrt(n() )
+#         ) %>%
+#     ungroup() %>%
+#     mutate(
+#         method = factor(
+#             x = method,
+#             levels = c(
+#                 "raw_p", "pval_bh", "pval_by", "pval_holm", "cluster_mass",
+#                 "cluster_tfce", "cpt", "brms"
+#                 ),
+#             labels = c(
+#                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
+#                 "TFCE", "Change point", "BGAM (our method)"
+#                 )
+#             )
+#         ) %>%
+#     ggplot(aes(x = 1-jaccard, y = mean_value_diff, colour = onset_offset) ) +
+#     geom_point(alpha = 0.6) +
+#     geom_line(data = plot_data, aes(y = mean_value_diff), size = 1.2) +
+#     geom_label(
+#         data = plot_data %>% group_by(method, onset_offset) %>% slice(1),
+#         aes(label = eq_label, x = 0.05, y = Inf),
+#         vjust = 1.2, hjust = 0,
+#         fill = "white", colour = "black",
+#         size = 3, inherit.aes = FALSE
+#         ) +
+#     facet_wrap(~method, nrow = 2) +
+#     theme_bw() +
+#         labs(
+#         x = "Jaccard dissimilarity",
+#         y = "Average absolute difference in onset/offset estimate (s)",
+#         colour = ""
+#         )
+
+# plotting the results
+full_df %>%
+    na.omit() %>%
+    mutate(jaccard_dis = 1-jaccard) %>%
+    # dplyr::filter(jaccard < 1 & jaccard > 0) %>%
+    # dplyr::filter(1-jaccard > 0 & 1-jaccard < 1) %>%
+    dplyr::filter(jaccard_dis > 0) %>%
+    group_by(method, onset_offset, jaccard_dis) %>%
+    summarise(
+        mean_value_diff = mean(x = value_diff, na.rm = TRUE),
+        sem = sd(x = value_diff, na.rm = TRUE) / sqrt(n() )
+        ) %>%
+    ungroup() %>%
+    mutate(
+        method = factor(
+            x = method,
+            levels = c(
+                "raw_p", "pval_bh", "pval_by", "pval_holm", "cluster_mass",
+                "cluster_tfce", "cpt", "brms"
+                ),
+            labels = c(
+                "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
+                "TFCE", "Change point", "BGAM (our method)"
+                )
+            )
+        ) %>%
+    ggplot(
+        aes(
+            # x = minMax(1-jaccard_similarity),
+            # x = 1-jaccard_similarity,
+            # x = max(jaccard)-jaccard,
+            x = jaccard_dis,
+            y = mean_value_diff,
+            fill = onset_offset,
+            colour = onset_offset,
+            group = onset_offset
+            )
+        ) +
+    # geom_point(size = 0.5, alpha = 0.05) +
+    geom_smooth(
+        # method = "glm",
+        # method.args = list(family = Gamma(link = "inverse") ),
+        # method.args = list(family = Gamma(link = "log") ),
+        # method.args = list(family = inverse.gaussian() ),
+        method = "lm",
+        # method = "gam",
+        # formula = y ~ stats::poly(x, degree = 3, raw = TRUE),
+        # formula = y ~ stats::poly(x, degree = poly_reg_degree, raw = TRUE),
+        # formula = rank(y) ~ rank(x),
+        # formula = y ~ logit_scaled(x),
+        # method.args = list(family = "binomial"),
+        alpha = 0.2,
+        fullrange = TRUE
+        ) +
+    # geom_point() +
+    geom_pointrange(
+        aes(ymin = mean_value_diff - sem, ymax = mean_value_diff + sem),
+        fatten = 1
+        ) +
+    stat_cor(
+        # showing the R and R^2
+        # aes(label = paste(..r.label.., ..rr.label.., sep = "~`,`~") ),
+        aes(label = paste(after_stat(r.label), after_stat(rr.label), sep = "~`,`~") ),
+        method = "spearman",
+        # method = "pearson",
+        # method = "kendall",
+        digits = 3,
+        # label.x = 0,
+        # label.y = 1,
+        label.x.npc = "left",
+        label.y.npc = "top",
+        geom = "label",
+        colour = "white",
+        size = 3.5
+        ) +
+    # stat_regline_equation(
+    #     aes(label = paste(..eq.label.., ..rr.label.., sep = "~`,`~") ),
+    #     # formula = rank(y) ~rank(x),
+    #     # formula = y ~ logit_scaled(x),
+    #     formula = y ~ stats::poly(x = x, degree = poly_reg_degree, raw = TRUE),
+    #     # method = "glm",
+    #     # method.args = list(family = Gamma(link = "log")),
+    #     label.x = 0,
+    #     label.y.npc = "top",
+    #     geom = "label",
+    #     colour = "white",
+    #     size = 3.5
+    #     ) +
+    # scale_y_log10(guide = "axis_logticks", limits = c(NA, 0.5) ) +
+    scale_y_log10(guide = "axis_logticks", limits = c(NA, 1) ) +
+    facet_wrap(~method, nrow = 2) +
+    theme_bw(base_size = 12) +
+    scale_fill_manual(values = met.brewer(name = "Johnson", n = 2) ) +
+    scale_colour_manual(values = met.brewer(name = "Johnson", n = 2) ) +
+    labs(
+        x = "Jaccard dissimilarity",
+        y = "Average absolute difference in onset/offset estimate (s)",
+        fill = "",
+        colour = ""
+        )
+
+# saving the plot
+# ggsave(
+#     filename = "figures/splits_summary_similarity_100pairs.png",
+#     width = 16, height = 8, dpi = 200,
+#     device = "png"
+#     )
+```
+
+This figure shows that, among the methods that performed best in the simulation study (i.e., `Cluster mass`, `Change point`, and `BGAM`), onset estimates remain highly stable across subsets of participants with varying Jaccard similarity, it varies from around 1ms for most similar subsets to around 10ms for most dissimilar subsets. Additionally, for both onset and offset estimates, the average pairwise difference increases monotonically with Jaccard dissimilarity, as indicated by the Spearman's rank correlation coefficient. For the onset estimates, the `Holm`, `Cluster mass`, `TFCE`, and `BGAM` methods exhibit the strongest monotonic relation with subset similarity (all $\rho\text{s} > 0.9$), whereas for offset estimates, all methods demonstrate excellent performance (all $\rho\text{s} > 0.9$) with the `BGAM` method showing the highest sensitivity ($\rho\approx0.994$). However, given the aberrant clusters identified by the `Raw p-value`, `FDR BH95`, and `FDR BY01` methods (see @fig-onset-offset), their sensitivity to variation in subset similarity is not meaningful.
+
+<!--
+
 @fig-reliability shows the median difference between the onset and offset estimates from each data split and the onset and offset estimates from the full dataset (x-axis) along with the variance of its onset and offset estimates across data splits (error bar). This figure reveals that the `BGAM` *onset and offset* estimates on each split are the closest to the estimates from the full dataset on average (0ms difference for the onset estimate and 5ms difference for the offset estimate). The `Raw p-value` method has similar performance for the offset, but given the aberrant estimates it produces (cf. @fig-onset-offset), the fact that it is consistent between data splits and the full dataset is not convincing on its own. The `Change point` method also has a very good performance (i.e., very low difference between split estimates and full estimates), but produces too short cluster of significant decoding performance (cf. @fig-onset-offset).[^3] Overall, the figure reveals that for all other methods, split datasets produce later onset estimates and earlier offset estimates (compared to the estimates from the model fitted on the full dataset). These results highlight some desirable properties for a method aiming to precisely and reliably estimate the onset and offset of M/EEG effects, namely, it should i) have good asymptotic properties on simulated data, ii) provide sensible identified clusters in actual data, and iii) provide reliable/stable estimates across various partitions of the data. All these desiderata seem to be fulfilled by the BGAM approach.
 
 [^3]: As in @rousselet_using_2025, we fixed the number of expected change points to two in the binary segmentation algorithm, thus producing always one cluster.
 
-```{r fig-reliability, echo = FALSE, cache = FALSE, fig.width = 8, fig.asp = 0.5, fig.cap = "Median error and median absolute deviation of the error for the onset (left) and offset (right) estimates according to each method. Methods are ordered from smallest (top) to largest (bottom) median absolute error separately for the onset and offset estimates."}
+```{r fig-reliability, eval = FALSE, echo = FALSE, cache = FALSE, fig.width = 8, fig.asp = 0.5, fig.cap = "Median error and median absolute deviation of the error for the onset (left) and offset (right) estimates according to each method. Methods are ordered from smallest (top) to largest (bottom) median absolute error separately for the onset and offset estimates."}
 # extracting the full data estimates
 full_reliability_results <- reliability_results %>%
     # filter(split_id == max(split_id) ) %>%
@@ -2527,7 +3294,7 @@ full_reliability_results <- reliability_results %>%
 # defining a consistent colour palette using original method levels
 original_methods <- c(
     "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
-    "TFCE", "Change point", "BGAM (new method)"
+    "TFCE", "Change point", "BGAM (our method)"
     )
 
 color_palette <- setNames(
@@ -2587,7 +3354,7 @@ reliability_results %>%
                 ),
             labels = c(
                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
-                "TFCE", "Change point", "BGAM (new method)"
+                "TFCE", "Change point", "BGAM (our method)"
                 ),
             )
         ) %>%
@@ -2659,7 +3426,7 @@ reliability_results %>%
 #                 ),
 #             labels = c(
 #                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
-#                 "TFCE", "Change point", "BGAM (new method)"
+#                 "TFCE", "Change point", "BGAM (our method)"
 #                 ),
 #             )
 #         ) %>%
@@ -2778,7 +3545,7 @@ reliability_summary <- reliability_errors %>%
                 ),
             labels = c(
                 "Raw p-value", "FDR BH95", "FDR BY01", "Holm", "Cluster mass",
-                "TFCE", "Change point", "BGAM (new method)"
+                "TFCE", "Change point", "BGAM (our method)"
                 ),
             )
         ) %>%
@@ -2831,31 +3598,33 @@ reliability_summary %>%
 
 \newpage
 
+-->
+
 # Discussion
 
-## Summary of the proposed approach
+In brief, our results show that the model-based approach we introduced outperforms conventional methods such as cluster-based inference in identifying the onset and offset of M/EEG effects. Performance was assessed both on simulated data--allowing us to evaluate the method's ability to recover ground-truth onset and offset values--and on actual MEG data--allowing us to assess its sensitivity to realistic data properties (subset similarity). Together, these results highlight desirable properties for any method aiming to precisely and reliably estimate the onset and offset of M/EEG effects: it should i) recover true onsets and offsets in simulation (good asymptotic behaviour), ii) identify clusters that are interpretable and consistent in empirical data, and iii) show sensitivity to subtle changes in the data. Our approach meets all three of these desiderata.
 
-Overall, before concluding on the onset/offset of effect based on the model, we need to ensure that the model provides a faithful description of the data-generating process (e.g., via posterior predictive checks etc)...
+As with previous simulation studies [e.g., @rousselet2008; @sassenhagen2019], results inevitably depend on design choices, including the specific cluster-forming algorithm and threshold (for cluster-based methods), the signal-to-noise ratio, and the potential degradation of temporal resolution introduced by preprocessing steps such as low-pass filtering. However, these constraints apply equally to all methods tested, so relative differences in performance remain meaningful.
 
-The TFCE performs worse than the cluster-sum approach, which was anticipated by @rousselet_using_2025 based on the initial results of @smith2009... we did not include the cluster-depth algorithm [@frossard2022], as @rousselet_using_2025 already showed its performance were worse than the cluster mass algorithm...
+**I am not sure what to do with this paragraph (not sure how to discuss these results/observations):** Interestingly, the TFCE method performed worse than the traditional cluster-sum approach, consistent with the predictions of @rousselet_using_2025 based on the original findings of @smith2009. We also found a striking overlap in the clusters identified by the `Holm` and `TFCE` procedures (cf. @fig-onset-offset and @fig-splits-similarity). Whereas these two approaches are conceptually distinct; `Holm` controlling the family-wise error rate through sequential *p*-value adjustment, `TFCE` enhancing signal based on spatiotemporal support; their similarity in practice may arise because both effectively prioritise extended, moderately strong effects over isolated high-intensity points. This convergence warrants further methodological work. We chose not to include the cluster-depth algorithm [@frossard2022], as prior work already shows its performance to be inferior to cluster-mass approaches in similar contexts [@rousselet_using_2025].
 
-## Limitations and future directions
+A critical consideration for any model-based approach is that the model must adequately capture the underlying data-generating process. Misspecified models are likely to produce biased or unreliable onset/offset estimates. This underscores the importance of thorough model diagnostics, including posterior predictive checks, fit assessments, and model comparison [@gelman2020]. As with any inferential modelling framework, transparency in assumptions and rigorous validation procedures are indispensable to ensure replicability and generalisability of the results.
 
-As in previous simulation work [e.g., @rousselet2008; @sassenhagen2019], the present simulation results depend on various choices such as the specific cluster-forming algorithm and threshold, signal-to-noise ratio, negative impact of preprocessing steps (e.g., low-pass filter) on temporal resolution... note however, that the same caveats apply to all methods...
+Another important methodological consideration concerns the selection of model hyperparameters, such as the threshold for posterior odds and the number of basis functions. Although our simulations suggest that these parameters influence the precision and reliability of onset and offset estimates, optimal values may vary depending on the signal's temporal dynamics and signal-to-noise characteristics. Future work could explore principled approaches to hyperparameter tuning, including cross-validation or fully Bayesian model selection using tools such as leave-one-out cross-validation (LOO-CV) or Bayes factors [@gelman2020]. We provide initial guidance in @apx-basis and advocate for future development of adaptive heuristics to support flexible yet parsimonious model specification.
 
-Discussion about the nature of the model: we modelled the surface M/EEG signals, however, the true interests (probably) lie in the brain, that is, in the source space... we could build a "full" Bayesian model of the generated EEG signal (i.e., including hypotheses about the source and a forward model), but this model would become computationally heavier...
+Currently, our approach estimates temporal effects independently at each sensor (1D temporal data). Extending the current framework to incorporate additional temporal (see @apx-2D) or spatial dimensions would improve both sensitivity and interpretability. Such extensions could draw on methods from spatial epidemiology and geostatistics using either GAMMs or approximate Gaussian process regression [e.g., @rasmussen2005; @riutort-mayol_practical_2023], depending on computational feasibility.
 
-The error properties depend on the threshold parameter, a value of 10 or 20 seems to be a reasonable default, but the optimal threshold parameter can be adjusted using split-half reliability assessment... also depends on `k`...
+To facilitate adoption, we developed the `neurogram` open-source `R` package [@neurogam], which implements the proposed method using `brms`. The package integrates seamlessly with `MNE-Python` [@gramfort2013], enabling researchers to process M/EEG data in `Python` and import them directly into `R` for model-based inference without cumbersome data export. This interoperability, described in @apx-package, is designed to encourage broader use of model-based approaches in cognitive neuroscience.
 
-Can be applied to any 1D timeseries (e.g., pupillometry, electromyography)... Extending the approach to spatiotemporal data (i.e., time + sensors) or spatiotemporal time-frequency 4D data...
-
-We kept the exemplary models simple, but can be extended by adding varying/random effects (intercept and slope) for item (e.g., word)... but also continuous predictors at the trial level, overlapping factors, etc...
+In conclusion, we introduced a model-based approach for estimating the onset and offset of M/EEG effects. Across simulated and empirical datasets, we showed that the method yields more precise and sensitive estimates than conventional cluster-based approaches. These results highlight the potential of flexible, model-based alternatives for characterising time-resolved neural dynamics, particularly in applications where accurate temporal localisation is critical.
 
 \newpage
 
+\setcounter{secnumdepth}{0}
+
 # Data and code availability
 
-The simulation results as well as the `R` code to reproduce the simulations are available on GitHub: <https://github.com/lnalborczyk/brms_meeg>. The `neurogam R` package is available at <https://github.com/lnalborczyk/neurogam>.
+The simulation results as well as the `R` code to reproduce the simulations are available at: <https://github.com/lnalborczyk/brms_meeg>. The `neurogam R` package is available at <https://github.com/lnalborczyk/neurogam>.
 
 # Packages
 
@@ -2866,9 +3635,12 @@ The simulation results as well as the `R` code to reproduce the simulations are 
 # citing the R packages we have used
 cite_packages(
     output = "paragraph",
-    omit = c("permuco", "reticulate"),
+    omit = c("bamlss", "changepoint", "permuco", "reticulate"),
     out.dir = getwd(),
-    dependencies = FALSE
+    dependencies = FALSE,
+    quiet = TRUE
+    # progress = FALSE,
+    # errors = "ignored"
     )
 ```
 
@@ -2885,24 +3657,26 @@ Centre de Calcul Intensif d'Aix-Marseille is acknowledged for granting access to
 
 \newpage
 
-# Appendix
+# Application to 2D time-resolved decoding results (cross-temporal generalisation) {#apx-2D}
 
-# Application to 2D time-resolved decoding results (cross-temporal generalisation) {#sec-2D}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
 
-Assume we have M/EEG data and we have conducted cross-temporal generalisation analyses [@king2014]. As a result, we have a 2D matrix where each element contains the decoding accuracy (e.g., ROC AUC) of a classifier trained at timestep $\text{training}_{i}$ and tested at timestep $\text{testing}_{j}$ (@fig-sim-timegen).
+We conducted a cross-temporal generalisation analysis of the decoding data from @nalborczyk:inprep, in which we assessed the performance of classifiers trained and tested at various timesteps of the trial [@king2014]. This analysis was performed at the participant level, resulting in a 2D matrix where each element contains the decoding accuracy (ROC AUC) of a classifier trained at timestep $\text{training}_{i}$ and tested at timestep $\text{testing}_{j}$ for each participant (@fig-timegen).
 
-```{r fig-timegen-tickertape, eval = FALSE, echo = FALSE, dpi = 300, out.width = "75%", fig.cap = "Exemplary group-level average cross-temporal generalisation matrix of decoding performance (ROC AUC)."}
+```{r fig-timegen, eval = TRUE, echo = FALSE, dpi = 300, out.width = "75%", fig.cap = "Group-level average cross-temporal generalisation matrix of decoding performance [data from @nalborczyk:inprep]."}
 # importing the MEG decoding data
 library(reticulate)
 use_condaenv("r-reticulate3", conda = "~/miniforge3/bin/conda", required = TRUE)
 np <- import("numpy")
 data <- np$load("data/group_level_decoding_4l_2s_vs_7l_2s_visual_blocks_temporal_generalisation_all.npy")
-# data <- np$load("data/group_level_decoding_7l_2s_vs_7l_3s_visual_blocks_temporal_generalisation_all.npy")
 
 # converting to R array
 data_r <- py_to_r(data)
-str(data_r)
-dim(data_r)
+
+# sanity checks
+# str(data_r)
+# dim(data_r)
 
 # original time vector (before decimation)
 time_points <- seq(from = -0.5, to = 1.0, length.out = dim(data_r)[2])
@@ -2918,8 +3692,8 @@ data_cut <- data_r[, start_idx:end_idx, start_idx:end_idx]
 time_points_cut <- time_points[start_idx:end_idx]
 
 # checking new dimensions
-dim(data_cut)
-length(time_points_cut)
+# dim(data_cut)
+# length(time_points_cut)
 
 # defining a decimation factor
 decim <- 4
@@ -2966,7 +3740,7 @@ timegen_data %>%
     labs(x = "Testing time (s)", y = "Training time (s)")
 ```
 
-```{r fig-sim-timegen, echo = FALSE, dpi = 300, out.width = "75%", fig.cap = "Exemplary (simulated) group-level average cross-temporal generalisation matrix of decoding performance (ROC AUC)."}
+```{r fig-sim-timegen, eval = FALSE, echo = FALSE, dpi = 300, out.width = "75%", fig.cap = "Exemplary (simulated) group-level average cross-temporal generalisation matrix of decoding performance (ROC AUC)."}
 # number of participants
 n_participants <- 10
 
@@ -3158,7 +3932,10 @@ timegen_data <- group_timegen_scores %>%
     mutate(test_time = as.numeric(test_time) )
 ```
 
-To model cross-temporal generalisation matrices of decoding performance (ROC AUC), we extended the initial (decoding) GAM to take into account the bivariate temporal distribution of AUC values, thus producing naturally smoothed estimates (timecourses) of AUC values and posterior probabilities. This model can be written as follows:
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+To model cross-temporal generalisation matrices of decoding performance (ROC AUC), we extended our initial BGAM to take into account the bivariate temporal distribution of AUC values, thus producing naturally smoothed estimates (timecourses) of AUC values and posterior probabilities. This model can be written as follows:
 
 $$
 \begin{aligned}
@@ -3167,17 +3944,26 @@ g(\mu_{i}) &= f \left(\text{train}_{i}, \text{test}_{i} \right)\\
 \end{aligned}
 $$
 
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
 where we assume that AUC values come from a $\mathrm{Beta}$ distribution with two parameters $\mu$ and $\phi$. We can think of $f \left(\text{train}_{i}, \text{test}_{i} \right)$ as a surface (a smooth function of two variables) that we can model using a 2-dimensional splines. Let $\mathbf{s}_{i} = \left(\text{train}_{i}, \text{test}_{i} \right)$ be some pair of training and testing samples, and let $\mathbf{k}_{m} = \left(\text{train}_{m}, \text{test}_{m} \right)$ denote the $m^{\text{th}}$ knot in the domain of $\text{train}_{i}$ and $\text{test}_{i}$. We can then express the smooth function as:
 
 $$
 f \left(\text{train}_{i}, \text{test}_{i} \right) = \alpha + \sum_{m=1}^M \beta_{m} b_{m} \left(\tilde{s}_{i}, \tilde{k}_{m} \right)
 $$
 
-Note that $b_{m}(,)$ is a basis function that maps $R \times R \rightarrow R$. A popular bivariate basis function uses *thin-plate splines* [@wood2003], which extend to $\mathbf{s}_{i} \in \mathbb{R}^{d}$ and $\partial l_{g}$ penalties. These splines are designed to interpolate and approximate smooth surfaces over two dimensions (hence the "bivariate" term). For $d=2$ dimensions and $l=2$ (smoothness penalty involving second order derivative):
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+A popular bivariate basis function uses *thin-plate splines* [@wood2003]. These splines are designed to interpolate and approximate smooth surfaces over two dimensions (hence the "bivariate" term). For $d=2$ dimensions and $l=2$ (smoothness penalty involving second order derivative):
 
 $$
 f \left(\tilde{s}_{i} \right) = \alpha + \beta_{1} x_{i} + \beta_{2} z_{i} +\sum_{m=1}^{M} \beta_{2+m} b_m\left(\tilde{s}_i, \tilde{k}_m\right)
 $$
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
 
 using the the radial basis function given by:
 
@@ -3185,72 +3971,40 @@ $$
 b_m\left(\tilde{s}_i, \tilde{k}_m\right)=\left\|\tilde{s}_i-\tilde{k}_m\right\|^2 \log \left\|\tilde{s}_i-\tilde{k}_m\right\|
 $$
 
-where $\left\|\mathbf{s}_i-\mathbf{k}_{m}\right\|$ is the Euclidean distance between the covariate $\mathbf{s}_{i}$ and the knot location $\mathbf{k}_{m}$. We fitted this model using `brms`... using the `t2()` smooth constructor with full penalties [@pedersen_hierarchical_2019]...
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
 
-```{r gam-timegen, eval = FALSE, echo = TRUE, results = "hide"}
+where $\left\|\mathbf{s}_i-\mathbf{k}_{m}\right\|$ is the Euclidean distance between the covariate $\mathbf{s}_{i}$ and the knot location $\mathbf{k}_{m}$. We fitted this model using `brms` and the `t2()` tensor product smooth constructor with full penalties [@pedersen_hierarchical_2019]. We ran eight MCMCs to approximate the posterior distribution, including each 5000 iterations and a warmup of 2000 iterations, yielding a total of $8 \times (5000-2000) = 24000$ posterior samples to be used for inference.
+
+```{r gam-timegen, eval = TRUE, echo = TRUE, results = "hide"}
 # fitting a GAM with two temporal dimensions
 timegen_gam <- brm(
-    # 2D thin-plate spline (tp)
-    # auc ~ t2(train_time, test_time, bs = "tp", k = 10),
-    auc ~ t2(train_time, test_time, bs = "tp", k = 20),
+    # 2D thin-plate spline (tp) with full penalties
+    auc ~ t2(train_time, test_time, bs = "tp", k = 30, full = TRUE),
     data = timegen_data,
-    family = Beta(),
-    warmup = 2000,
+    family = brms::Beta(),
+    warmup = 1000,
     iter = 5000,
     chains = 8,
     cores = 8,
-    # file = "models/timegen_gam_t2.rds" # k = 10
-    file = "models/timegen_gam_t2_k20.rds" # k = 20
-    )
-
-# fitting a GAM with two temporal dimensions to empirical data
-timegen_gam <- brm(
-    # 2D thin-plate spline (tp)
-    # auc ~ t2(train_time, test_time, bs = "tp", k = 30),
-    auc ~ t2(train_time, test_time, bs = "tp", k = 20, full = TRUE),
-    data = timegen_data,
-    family = Beta(),
-    warmup = 1000,
-    iter = 3000,
-    chains = 8,
-    cores = 8,
-    # file = "models/timegen_gam_meg_t2_k30.rds"
-    file = "models/timegen_gam_meg_t2_k20_full.rds"
-    )
-
-# retrieving the data
-# timegen_data <- timegen_gam$data
-
-# PPCs
-# pp_check(timegen_gam)
-```
-
-```{r gp-timegen, eval = FALSE, echo = FALSE, results = "hide"}
-# fitting a GP with two temporal dimensions
-timegen_gp <- brm(
-    auc ~ gp(train_time, test_time, k = 20),
-    data = timegen_data,
-    family = Beta(),
-    control = list(adapt_delta = 0.95),
-    iter = 2000,
-    chains = 4,
-    cores = 4,
-    file = "models/timegen_gp.rds"
+    control = list(adapt_delta = 0.95, max_treedepth = 15),
+    backend = "cmdstanr",
+    stan_model_args = list(stanc_options = list("O1") ),
+    file = "models/timegen_gam_meg_t2_k30_full.rds"
     )
 ```
 
-```{r gam-timegen-post-preds, eval = FALSE, echo = FALSE, cache = FALSE, fig.width = 9, fig.asp = 0.5, fig.cap = "Simulated data with thresholds derived from the BGAM (left), predicted AUC values (middle), and posterior probabily ratios of decoding accuracy being above chance level (right) according to the bivariate BGAM (for k=10, top row, and k=20, bottom row)."}
+```{r fig-gam-timegen-post-preds, eval = TRUE, echo = FALSE, cache = FALSE, fig.width = 9, fig.asp = 0.5, fig.cap = "Predicted AUC values with threshold (left) and posterior odds of decoding accuracy being above chance (right) according to the bivariate BGAM."}
 # defining a function to plot posterior predictions
-plot_post_timegen <- function (model, data = NULL, chance_level = 0.5, sesoi = 0, thresholds = c(10, 100) ) {
+plot_post_timegen <- function (
+        model, data = NULL, chance_level = 0.5,
+        sesoi = 0, thresholds = c(10, 100)
+        ) {
     
     # if no data is specified, use model$data
     if (is.null(data) ) data <- model$data
     
     # defining a sequence of x values to make predictions
-    # preds_conds <- crossing(
-    #     train_time = unique(data$train_time)[c(TRUE, FALSE)],
-    #     test_time = unique(data$test_time)[c(TRUE, FALSE)]
-    #     )
     preds_conds <- crossing(
         train_time = unique(data$train_time),
         test_time = unique(data$test_time)
@@ -3284,22 +4038,7 @@ plot_post_timegen <- function (model, data = NULL, chance_level = 0.5, sesoi = 0
     
     # determining common limits
     fill_limits <- range(all_aucs, na.rm = TRUE)
-
-    # plotting cross-temporal generalization matrix
-    post_preds_plot <- post_preds %>%
-        summarise(auc = mean(estimate__), .by = c(train_time, test_time) ) %>%
-        ggplot(aes(x = train_time, y = test_time, fill = auc) ) +
-        geom_tile() +
-        geom_vline(xintercept = 0, linetype = 2, linewidth = 0.5) +
-        geom_hline(yintercept = 0, linetype = 2, linewidth = 0.5) +
-        geom_abline(slope = 1, intercept = 0, linetype = 2, linewidth = 0.5) +
-        scale_x_continuous(expand = c(0, 0) ) +
-        scale_y_continuous(expand = c(0, 0) ) + 
-        coord_fixed() +
-        # scale_fill_scico(palette = "vik", midpoint = 0.5, name = "AUC") +
-        scale_fill_scico(palette = "vik", midpoint = 0.5, name = "AUC", limits = fill_limits) +
-        labs(x = "Testing time (s)", y = "Training time (s)")
-
+    
     # retrieving posterior samples
     posterior_samples <- posterior_epred(object = model, newdata = preds_conds)
     
@@ -3308,9 +4047,45 @@ plot_post_timegen <- function (model, data = NULL, chance_level = 0.5, sesoi = 0
         mutate(post_prob = colMeans(posterior_samples) ) %>%
         mutate(m = colMeans(posterior_samples > (chance_level + sesoi) ) ) %>%
         mutate(prob_ratio = m / (1 - m) ) %>%
-        mutate(prob_ratio = ifelse(prob_ratio == Inf, ndraws(model), prob_ratio) ) %>%
-        mutate(prob_ratio = ifelse(prob_ratio == 0, 1 / ndraws(model), prob_ratio) )
+        mutate(prob_ratio = pmin(prob_ratio, ndraws(model) ) ) %>%
+        mutate(prob_ratio = pmax(prob_ratio, 1 / ndraws(model) ) )
     
+    # plotting cross-temporal generalisation matrix
+    # data_plot <- data %>%
+    #     summarise(auc = mean(auc), .by = c(train_time, test_time) ) %>%
+    #     ggplot(aes(x = train_time, y = test_time, fill = auc) ) +
+    #     geom_tile() +
+    #     geom_vline(xintercept = 0, linetype = 2, linewidth = 0.5) +
+    #     geom_hline(yintercept = 0, linetype = 2, linewidth = 0.5) +
+    #     geom_abline(slope = 1, intercept = 0, linetype = 2, linewidth = 0.5) +
+    #     scale_x_continuous(expand = c(0, 0) ) +
+    #     scale_y_continuous(expand = c(0, 0) ) + 
+    #     coord_fixed() +
+    #     scale_fill_scico(palette = "vik", midpoint = 0.5, name = "AUC", limits = fill_limits) +
+    #     labs(x = "Testing time (s)", y = "Training time (s)")
+    
+    # plotting cross-temporal generalization matrix
+    post_preds_plot <- post_preds %>%
+        summarise(auc = mean(estimate__), .by = c(train_time, test_time) ) %>%
+        ggplot(aes(x = train_time, y = test_time, fill = auc) ) +
+        geom_tile() +
+        geom_vline(xintercept = 0, linetype = 2, linewidth = 0.5) +
+        geom_hline(yintercept = 0, linetype = 2, linewidth = 0.5) +
+        geom_abline(slope = 1, intercept = 0, linetype = 2, linewidth = 0.5) +
+        geom_contour(
+            data = prob_y_above_0,
+            aes(x = train_time, y = test_time, z = prob_ratio),
+            breaks = thresholds,
+            color = "black",
+            linewidth = 1,
+            inherit.aes = FALSE
+            ) +
+        scale_x_continuous(expand = c(0, 0) ) +
+        scale_y_continuous(expand = c(0, 0) ) + 
+        coord_fixed() +
+        scale_fill_scico(palette = "vik", midpoint = 0.5, name = "AUC", limits = fill_limits) +
+        labs(x = "Testing time (s)", y = "Training time (s)")
+
     # plotting it
     prob_above_chance_plot <- prob_y_above_0 %>%
         ggplot(aes(x = train_time, y = test_time, fill = prob_ratio) ) +
@@ -3324,83 +4099,56 @@ plot_post_timegen <- function (model, data = NULL, chance_level = 0.5, sesoi = 0
         scale_fill_scico(
             palette = "vik",
             midpoint = 0,
-            name = "Post. prob. ratio",
+            name = "Posterior odds",
             trans = "log10"
             ) +
         labs(x = "Testing time (s)", y = "Training time (s)")
     
-    # plotting cross-temporal generalisation matrix
-    threshold_data_plot <- data %>%
-        summarise(auc = mean(auc), .by = c(train_time, test_time) ) %>%
-        ggplot(aes(x = train_time, y = test_time, fill = auc) ) +
-        geom_tile() +
-        geom_vline(xintercept = 0, linetype = 2, linewidth = 0.5) +
-        geom_hline(yintercept = 0, linetype = 2, linewidth = 0.5) +
-        geom_abline(slope = 1, intercept = 0, linetype = 2, linewidth = 0.5) +
-        scale_x_continuous(expand = c(0, 0) ) +
-        scale_y_continuous(expand = c(0, 0) ) + 
-        coord_fixed() +
-        # scale_fill_scico(palette = "vik", midpoint = 0.5, name = "AUC") +
-        scale_fill_scico(palette = "vik", midpoint = 0.5, name = "AUC", limits = fill_limits) +
-        labs(x = "Testing time (s)", y = "Training time (s)") +
-        geom_contour(
-            data = prob_y_above_0,
-            aes(x = train_time, y = test_time, z = prob_ratio),
-            breaks = thresholds,
-            color = "black",
-            linewidth = 1,
-            inherit.aes = FALSE
-            )
-    
     # combining the plots
-    threshold_data_plot + post_preds_plot + prob_above_chance_plot
+    post_preds_plot + prob_above_chance_plot
   
 }
 
-# importing the models
-bgam_k10 <- readRDS(file = "models/timegen_gam_t2.rds")
-bgam_k20 <- readRDS(file = "models/timegen_gam_t2_k20.rds")
-
 # computing the SESOI as the baseline SD
-baseline_sd <- timegen_data %>%
-    filter(train_time < 0 & test_time < 0.2) %>%
-    summarise(sd(auc) ) %>% pull()
+# baseline_sd <- timegen_data %>%
+#     filter(train_time < 0 & test_time < 0) %>%
+#     summarise(sd(auc) ) %>%
+#     pull()
 
-# posterior predictive checks
-# pp_check(bgam_k10)
-# pp_check(bgam_k20)
+# computing the SESOI as the baseline upper 99% quantile
+baseline_upper_quantile <- timegen_data %>%
+    filter(train_time < 0 & test_time < 0) %>%
+    summarise(quantile(x = auc, probs = 0.99) ) %>%
+    pull()
 
-# plotting predictions for each model
-k10_plot <- plot_post_timegen(
-    model = bgam_k10,
-    # model = timegen_gam,
-    chance_level = 0.5,
-    sesoi = baseline_sd,
-    # thresholds = c(10, 100)
-    # thresholds = 10
-    thresholds = 20
+# computing predictions and posterior odds contours
+post_preds_plot <- plot_post_timegen(
+    model = timegen_gam,
+    data = timegen_data,
+    # chance_level = 0.5,
+    # sesoi = baseline_sd,
+    chance_level = baseline_upper_quantile,
+    sesoi = 0,
+    # thresholds = c(20, 50, 100)
+    thresholds = 10
     )
 
-k20_plot <- plot_post_timegen(
-    model = bgam_k20,
-    chance_level = 0.5,
-    sesoi = baseline_sd,
-    # thresholds = c(10, 100),
-    # thresholds = 10
-    thresholds = 20
-    )
-
-# combining the plots
-k10_plot / k20_plot
+# showing the plot
+post_preds_plot
 ```
 
-Could be extended to spatial and temporal dimensions with formulas such as `te(x, y, Time, d = c(2, 1) )`...
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+@fig-gam-timegen-post-preds shows the predictions from the model (left) superimposed with the identified cluster as defined by thresholding the posterior odds (right). Notably, this model could be extended to a multilevel bivariate GAM via `t2(train_time, test_time, participant, bs = c("tp", "tp", "re"), m = 2, full = TRUE)` and could be generalised to account for both spatial (`x1` and `x2`) and temporal (`time`) dimensions with formulas such as `te(x, y, time, d = c(2, 1) )`. The performance of such models should be assessed in future work.
+
+<!--
 
 \newpage
 
 # Alternative to GAMs: Approximate Gaussian Process regression
 
-A Gaussian process (GP) is a stochastic process that defines the distribution over a collection of random variables indexed by a continuous variable, that is $\{f(t): t \in \mathcal{T}\}$ for some index set $\mathcal{T}$ [@riutort-mayol_practical_2023; @rasmussen2005]. Whereas Bayesian linear regression outputs a distribution over the parameters of some predefined parametric model, the GP approach, in contrast, is a non-parametric approach, in that it finds a distribution over the possible functions that are consistent with the observed data. However, note that nonparametric does not mean there aren't parameters, it means that there are infinitely many parameters.
+A Gaussian process (GP) is a stochastic process that defines the distribution over a collection of random variables indexed by a continuous variable, that is $\{f(t): t \in \mathcal{T}\}$ for some index set $\mathcal{T}$ [@riutort-mayol_practical_2023; @rasmussen2005]. Whereas Bayesian linear regression outputs a distribution over the parameters of some predefined parametric model, the GP approach, in contrast, is a non-parametric approach, in that it finds a distribution over the possible functions that are consistent with the observed data. However, "nonparametric" does not mean there aren't parameters, it means that there are infinitely many parameters.
 
 From [brms documentation](https://www.rdocumentation.org/packages/brms/versions/2.22.0/topics/gp): A GP is a stochastic process, which describes the relation between one or more predictors $x=\left(x_{1}, \ldots, x_{d}\right)$ and a response $f(x)$, where $d$ is the number of predictors. A GP is the generalization of the multivariate normal distribution to an infinite number of dimensions. Thus, it can be interpreted as a prior over functions. The values of $f()$ at any finite set of locations are jointly multivariate normal, with a covariance matrix defined by the covariance kernel $k_p\left(x_i, x_j\right)$, where $p$ is the vector of parameters of the GP:
 
@@ -3489,15 +4237,25 @@ meta_gp <- brm(
     )
 ```
 
+-->
+
 \newpage
 
-# How to choose the GAM basis dimension? {#sec-basis}
+# How to choose the GAM basis dimension? {#apx-basis}
 
-Here we should provide recommendation about how to define `k`... An option is to vary `k` and examine the predictions and posterior predictive checks (PPCs) of each model... In this example (@fig-choose-k)... However, it is not possible to provide general recommendations, as the optimal `k` depends on the sampling rate, the preprocessing steps (e.g., signal-to-noise ratio, low-pass filtering, etc), and the neural dynamics of the phenomenon under study. Choose `k` as large a possible (given limits on computation time etc)? Or use LOOIC/WAIC (seem to select too simple models)?
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
 
-```{r fig-choose-k, results = "hide", echo = FALSE, fig.width = 9, fig.asp = 1, fig.cap = "Posterior predictions and posterior predictive checks for the GAM with varying k (in rows)."}
+There is no universal recommendation for choosing the optimal value of `k`, as it depends on several factors, including the sampling rate, preprocessing steps (e.g., signal-to-noise ratio, low-pass filtering), and the underlying neural dynamics of the phenomenon under investigation. One strategy is to set `k` as high as computational constraints allow, as suggested by previous authors [e.g., @pedersen_hierarchical_2019]. Alternatively, one can fit a series of models with different `k` values and compare them using information criteria such as LOOIC or WAIC, alongside posterior predictive checks (PPCs), to select the model that best captures the structure of the data. We illustrate this approach below.
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+@fig-choose-k presents the posterior predictions and two forms of posterior predictive checks (PPCs) for each GAM fit using different numbers of basis functions ($k \in \{5, 10, 20, 40, 80\}$). With the exception of the $k=5$ model, all other fits yield satisfactory PPCs, indicating that the predicted data closely resemble the empirical observations. However, model comparison using the leave-one-out information crtierio (LOOIC), as summarised in @tbl-simulation-results, identifies the $k=40$ model as the best-performing one in terms of LOOIC, closely followed by the $k=80$ model. This suggests that the optimal number of basis functions likely lies between these two values. Future simulation studies could further investigate how such model selection criteria relate to the precision of onset and offset estimates.
+
+```{r fig-choose-k1, results = "hide", echo = FALSE, fig.width = 10, fig.asp = 1.25, fig.cap = "Posterior predictions and posterior predictive checks for the GAM with varying k (in rows)."}
 # defining a list of possible k values
-# k_values <- c(5, 10, 20, 50)
+# k_values <- c(5, 10, 20, 40, 80)
 
 # initialising lists to store models and plots
 # gam_models <- list()
@@ -3505,47 +4263,59 @@ Here we should provide recommendation about how to define `k`... An option is to
 # ppc_dens_plots <- list()
 # ppc_ecdf_plots <- list()
 # ppc_stat2d_plots <- list()
-# 
-# # looping over k values
+
+# looping over k values
 # for (k_value in k_values) {
-#     
+# 
 #     # printing progress
 #     cat("Processing k =", k_value, "\n")
-#     
+# 
 #     # fitting the GAM
 #     gam <- brm(
-#         eeg ~ condition + s(time, bs = "tp", k = k_value, by = condition),
+#         eeg_mean ~ condition + s(time, bs = "tp", k = k_value, by = condition),
 #         data = ppt_df,
 #         family = gaussian(),
-#         warmup = 2000,
+#         warmup = 1000,
 #         iter = 5000,
 #         chains = 4,
-#         cores = 4
+#         cores = 4,
+#         file = paste0("results/gam_k", as.character(k_value), ".rds")
+#         )
+#     
+#     # computing model comparison indices
+#     gam <- add_criterion(
+#         x = gam,
+#         # criterion = c("loo", "waic", "bayes_R2", "loo_R2", "marglik"),
+#         criterion = c("loo", "waic", "bayes_R2"),
+#         model_name = paste0("gam_k", as.character(k_value) )
 #         )
 #     
 #     # storing the model
 #     gam_models[[as.character(k_value)]] <- gam
-#     
+# 
 #     # generating posterior predictions
 #     post_pred_plots[[as.character(k_value)]] <- plot_post_preds(model = gam) +
 #         ggtitle(paste("Posterior predictions (k =", k_value, ")") )
-#     
+# 
 #     # generating posterior predictive checks
-#     ppc_dens_plots[[as.character(k_value)]] <- pp_check(gam, ndraws = 100, type = "dens_overlay") + 
+#     ppc_dens_plots[[as.character(k_value)]] <- pp_check(gam, ndraws = 100, type = "dens_overlay") +
 #         labs(x = "EEG signal", y = "Density") +
 #         ggtitle(paste("Density overlay (k =", k_value, ")") ) +
 #         theme(legend.position = "none")
-#     
-#     ppc_ecdf_plots[[as.character(k_value)]] <- pp_check(gam, ndraws = 100, type = "ecdf_overlay") + 
+# 
+#     ppc_ecdf_plots[[as.character(k_value)]] <- pp_check(gam, ndraws = 100, type = "ecdf_overlay") +
 #         labs(x = "EEG signal", y = "Cumulative density") +
 #         ggtitle(paste("ECDF overlay (k =", k_value, ")") ) +
 #         theme(legend.position = "none")
-#     
-#     ppc_stat2d_plots[[as.character(k_value)]] <- pp_check(gam, ndraws = 500, type = "stat_2d", stat = c("mean", "sd") ) + 
+# 
+#     ppc_stat2d_plots[[as.character(k_value)]] <- pp_check(gam, ndraws = 500, type = "stat_2d", stat = c("mean", "sd") ) +
 #         labs(x = "Mean", y = "SD") +
 #         ggtitle(paste("Mean vs. SD (k =", k_value, ")") )
 # 
 # }
+
+# saving the models
+# saveRDS(object = gam_models, file = "results/gam_k_models.rds")
 
 # saving the results
 # saveRDS(object = post_pred_plots, file = "results/post_pred_plots.rds")
@@ -3553,35 +4323,31 @@ Here we should provide recommendation about how to define `k`... An option is to
 # saveRDS(object = ppc_ecdf_plots, file = "results/ppc_ecdf_plots.rds")
 # saveRDS(object = ppc_stat2d_plots, file = "results/ppc_stat2d_plots.rds")
 
+# importing the models
+gam_models <- readRDS(file = "results/gam_k_models.rds")
+
 # importing the results
 post_pred_plots <- readRDS(file = "results/post_pred_plots.rds")
 ppc_dens_plots <- readRDS(file = "results/ppc_dens_plots.rds")
 ppc_ecdf_plots <- readRDS(file = "results/ppc_ecdf_plots.rds")
 ppc_stat2d_plots <- readRDS(file = "results/ppc_stat2d_plots.rds")
 
-# importing the results
-
 # pp_check(gam, ndraws = 100, type = "ecdf_overlay") + 
 #     labs(x = "EEG signal", y = "Cumulative density") + ggtitle(paste("ECDF overlay (k =", k_value, ")") ) + theme(legend.position = "none")
 # pp_check(gam, ndraws = 200, type = "stat_2d", stat = c("median", "mad") ) + 
 #     labs(x = "Mean", y = "SD") + ggtitle(paste("Mean vs. SD (k =", k_value, ")") )
 
-# arranging all plots in a 4x4 grid using patchwork
-# final_plot <- (
-#     post_pred_plots[["5"]] + ppc_dens_plots[["5"]] + ppc_ecdf_plots[["5"]] + ppc_stat2d_plots[["5"]] +
-#     post_pred_plots[["10"]] + ppc_dens_plots[["10"]] + ppc_ecdf_plots[["10"]] + ppc_stat2d_plots[["10"]] +
-#     post_pred_plots[["20"]] + ppc_dens_plots[["20"]] + ppc_ecdf_plots[["20"]] + ppc_stat2d_plots[["20"]] +
-#     post_pred_plots[["50"]] + ppc_dens_plots[["50"]] + ppc_ecdf_plots[["50"]] + ppc_stat2d_plots[["50"]]
-#     ) + plot_layout(ncol = 4, nrow = 4)
+# arranging plots using patchwork
 final_plot <- (
     post_pred_plots[["5"]] + ppc_dens_plots[["5"]] + ppc_stat2d_plots[["5"]] +
     post_pred_plots[["10"]] + ppc_dens_plots[["10"]] + ppc_stat2d_plots[["10"]] +
     post_pred_plots[["20"]] + ppc_dens_plots[["20"]] + ppc_stat2d_plots[["20"]] +
-    post_pred_plots[["50"]] + ppc_dens_plots[["50"]] + ppc_stat2d_plots[["50"]]
-    ) + plot_layout(ncol = 3, nrow = 4)
+    post_pred_plots[["40"]] + ppc_dens_plots[["40"]] + ppc_stat2d_plots[["40"]] +
+    post_pred_plots[["80"]] + ppc_dens_plots[["80"]] + ppc_stat2d_plots[["80"]]
+    ) + plot_layout(ncol = 3, nrow = 5)
 
 # displaying the final plot
-print(final_plot)
+# print(final_plot)
 
 # saving the plot
 # ggsave(
@@ -3611,11 +4377,59 @@ print(final_plot)
 # pp_check(object = gam, ndraws = 200, type = "stat_2d", stat = c("median", "mad") )
 ```
 
+```{r tbl-k-results, eval = TRUE, echo = FALSE, results = "asis", fig.pos = "h", out.extra = ''}
+#| tbl-cap: "Models comparison with LOOIC. Models are arranged by the diffence in expected log-pointwise density (ELPD) to the best model (i.e., k=40)."
+#| # comparing the models
+models_comp <- brms::loo_compare(
+    gam_models[["5"]],
+    gam_models[["10"]],
+    gam_models[["20"]],
+    gam_models[["40"]],
+    gam_models[["80"]],
+    criterion = "loo"
+    )
+
+data.frame(models_comp) %>%
+    rownames_to_column(var = "k") %>%
+    mutate(k = str_extract(string = k, pattern = '"[^"]*"') ) %>%
+    mutate(k = str_remove_all(string = k, pattern = '^"|"$') ) %>%
+    # mutate(across(.cols = where(is.numeric), .fns = ~round(.x, 2) ) ) %>%
+    gt() %>%
+    fmt_number(
+        columns = everything(),
+        decimals = 2
+        ) %>%
+    cols_align(
+        align = "center",
+        columns = everything()
+        ) %>%
+    cols_align(
+        align = "left",
+        columns = k
+        ) %>%
+    # cols_label(
+    #     # elpd_diff = "\\$Delta$ diff"
+    #     ) %>%
+    tab_options(
+        table.align = "center",
+        table.font.size = 10
+        ) %>%
+    as_latex()
+```
+
+```{r fig-choose-k, results = "hide", echo = FALSE, fig.width = 10, fig.asp = 1.25, fig.cap = "Posterior predictions and posterior predictive checks for the GAM with varying k (in rows)."}
+# displaying the final plot
+print(final_plot)
+```
+
 \newpage
 
-# `R` package and integration with `MNE-Python`
+# `R` package and integration with `MNE-Python` {#apx-package}
 
-For users who are already familiar with `brms`, the recommended pipeline is to import ERPs or decoding results in `R` and analyse these data using the code provided in the main paper. It is also possible to call functions from the `neurogam R` package (available at <https://github.com/lnalborczyk/neurogam>) which come with sensible defaults.
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+For readers who are already familiar with `brms`, the recommended pipeline is to use the code provided in the main paper (available at <https://github.com/lnalborczyk/brms_meeg>). It is also possible to call functions from the `neurogam R` package (available at <https://github.com/lnalborczyk/neurogam>) which come with sensible defaults.
 
 ```{r, eval = FALSE, echo = TRUE}
 # installing (if needed) and loading the neurogam R package
@@ -3623,16 +4437,16 @@ For users who are already familiar with `brms`, the recommended pipeline is to i
 library(neurogam)
 
 # using the testing_through_time() function from the neurogam package
-# this may take a few minutes (or hours depending the machine's
-# performance and data size)...
+# this may take a few minutes (or hours depending on the machine's
+# performance and the size of the dataset)...
 gam_onset_offset <- testing_through_time(
     # dataframe with M/EEG data in long format
     data = raw_df,
-    # threshold for defining clusters (20 by default)
-    threshold = 20,
     # the *_id arguments are used to specify the relevant columns in data 
     participant_id = "participant", meeg_id = "eeg",
     time_id = "time", predictor_id = "condition",
+    # posterior odds threshold for defining clusters (20 by default)
+    threshold = 20,
     # number of warmup MCMC iterations
     warmup = 1000,
     # total number of MCMC iterations
@@ -3647,7 +4461,10 @@ gam_onset_offset <- testing_through_time(
 gam_onset_offset$clusters
 ```
 
-The `neurogam` package can also be called from `Python` using the `rpy2` module, and can easily be integrated into `MNE-Python` pipelines. For example, we use it below to estimate the onset and offset of effects for one EEG channel from a MNE evoked object. Note that the code used to reshape the `sample MNE` dataset is available in the online supplementary materials, and we refer to the [MNE documentation](https://mne.tools/stable/auto_tutorials/epochs/50_epochs_to_data_frame.html) about converting `MNE` epochs to `Pandas` dataframes in long format (i.e., with one observation per row).
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+The `neurogam` package can also be called from `Python` using the `rpy2` module, and can easily be integrated into `MNE-Python` pipelines. For example, we use it below to estimate the onset and offset of effects for one EEG channel from an MNE evoked object. The code used to reshape the `sample MNE` dataset is available in the online supplementary materials, and we further refer to the [MNE documentation](https://mne.tools/stable/auto_tutorials/epochs/50_epochs_to_data_frame.html) about converting `MNE` epochs to `Pandas` dataframes in long format (i.e., with one observation per row).
 
 ```{python, eval = FALSE, echo = TRUE}
 # loading the Python modules
@@ -3671,7 +4488,7 @@ with localconverter(robjects.default_converter + pandas2ri.converter):
 # using the testing_through_time() function from the neurogam R package
 gam_onset_offset = neurogam.testing_through_time(
     data=reshaped_df_r,
-    threshold=10,
+    threshold=20,
     multilevel=False
     )
 

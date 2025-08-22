@@ -120,12 +120,15 @@ find_clusters <- function (data, threshold = 10, above_threshold = TRUE) {
 freq_stats_cluster_matrix <- function (
         X, timesteps,
         cluster_type = c("mass", "tfce"),
-        alpha_level = 0.05
+        alpha_level = 0.05,
+        verbose = FALSE
         ) {
     
     # converting R matrix to NumPy array
     X_np <- np$array(X, dtype = "float64")
-    message(print(X_np) )
+    
+    # sanity check
+    if (verbose) {message(print(X_np) )}
     
     # defining the type of cluster-based method to use
     if (cluster_type == "mass") {
@@ -154,20 +157,21 @@ freq_stats_cluster_matrix <- function (
             threshold = threshold,
             n_permutations = as.integer(2^12),
             n_jobs = as.integer(1),
-            verbose = TRUE
+            verbose = verbose
             )
-    }, error = function(e) {
+    }, error = function (e) {
         message("Python error: ", e$message)
         message(reticulate::py_last_error() )
         return(NULL)
     })
     
-    if (is.null(results)) {
+    if (is.null(results) ) {
         message(reticulate::py_last_error() )
         stop("Python function failed.")
     }
     
-    message("Length of results: ", length(results) )
+    # sanity check
+    if (verbose) {message("Length of results: ", length(results) )}
     
     if (length(results) < 3) {
         stop("Python function did not return 3 results as expected.")
@@ -187,6 +191,8 @@ freq_stats_cluster_matrix <- function (
         # defining the (main) cluster onset and offset
         main_cluster_onset <- clusters[which(p_values < alpha_level)][[1]][[1]]$start+1
         main_cluster_offset <- clusters[which(p_values < alpha_level)][[1]][[1]]$stop
+        
+        # old
         # main_cluster_offset <- clusters[which(p_values < alpha_level)][[1]][[1]]$stop+1
         
         # assigning p-values to clusters
@@ -196,6 +202,8 @@ freq_stats_cluster_matrix <- function (
             cluster_mask <- clusters[[i]][[1]]
             idx_start <- cluster_mask$start+1
             idx_stop <- cluster_mask$stop
+            
+            # old
             # idx_stop <- cluster_mask$stop+1
             
             # retrieving the p-value for this cluster

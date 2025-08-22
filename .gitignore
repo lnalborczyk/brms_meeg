@@ -8,3 +8,5 @@ manuscript_cache/pdf/
 manuscript_cache/**/*
 results/
 models/
+private/
+code/old/

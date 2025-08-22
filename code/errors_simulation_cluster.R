@@ -2,10 +2,11 @@
 # Monte-Carlo simulation of onset/offset error properties #
 # Written by Ladislas Nalborczyk                          #
 # Contact: ladislas.nalborczyk@gmail.com                  #
-# Last updated on May 9, 2025                             #
+# Last updated on August 7, 2025                          #
 ###########################################################
 
-options(error = function() {traceback(2); quit("no", status = 1, runLast = FALSE)})
+# logging error messages on the HPC cluster
+options(error = function() { traceback(2); quit("no", status = 1, runLast = FALSE) })
 
 # importing R packages
 library(changepoint)
@@ -48,10 +49,10 @@ source("code/eeg_noise.R")
 source("code/erp_template.R")
 
 # to use with the eeg_noise function
-# meanpower <- unlist(read.table("code/meanpower.txt") )
+meanpower <- unlist(read.table("code/meanpower.txt") )
 
 # defining the total number of simulations to be performed
-n_sims <- 8
+n_sims <- 500
 
 # defining simulation parameters
 n_trials <- 50 # number of trials
@@ -70,13 +71,12 @@ significance_thresholds <- c(0.05, 0.01, 0.005, 0.001)
 # defining possible (posterior probability ratio) threshold values
 threshold_values <- c(1, 3, 6, 10, 20, 50, 100)
 
-# initialising empty simulation results
-# sim_results <- data.frame()
-
 # for each simulation
 sim_results <- foreach(
-    i = seq_len(n_sims), .combine = bind_rows,
-    .packages = c("brms", "dplyr", "tidyr", "tidybayes", "changepoint", "reticulate")
+    i = seq_len(n_sims),
+    .combine = bind_rows,
+    .errorhandling = "pass",
+    .packages = c("reticulate", "brms", "dplyr", "tidyr", "tidybayes", "changepoint")
     ) %dopar% {
         
         # formatting the current sim ID
@@ -84,13 +84,14 @@ sim_results <- foreach(
         
         # importing Python modules locally
         message_parallel("\nImporting Python modules...")
-        use_condaenv("r-reticulate3", conda = "~/miniforge3/bin/conda", required = TRUE)
+        # use_condaenv("r-reticulate3", conda = "~/miniforge3/bin/conda", required = TRUE)
         
         # importing Python modules on the HPC cluster
         # py_require(packages = c("numpy", "mne"), python_version = "3.12.0")
-        # np <- import("numpy")
-        # mne <- import("mne")
-        # mne$set_log_level("WARNING") # or "ERROR"
+        py_require(packages = c("numpy==2.2.0", "pillow==11.2.1", "mne"), python_version = "3.12.0")
+        np <- import("numpy")
+        mne <- import("mne")
+        mne$set_log_level("WARNING") # or "ERROR"
         
         # printing progress
         message_parallel(sprintf("\nRunning simulation %d out of %d...", i, n_sims) )
@@ -123,10 +124,11 @@ sim_results <- foreach(
             # using by-participant SD of ERPs across trials
             eeg_mean | se(eeg_sd) ~
                 condition + (1 + condition | participant) +
-                s(time, bs = "cr", k = 20, by = condition),
+                # s(time, bs = "cr", k = 20, by = condition),
+                s(time, bs = "tp", k = 20, by = condition),
             data = summary_df,
             family = gaussian(),
-            warmup = 2000,
+            warmup = 1000,
             iter = 5000,
             chains = cores_per_model,
             cores = cores_per_model
@@ -148,8 +150,9 @@ sim_results <- foreach(
             mutate(prob_ratio = m / (1 - m) ) |>
             ungroup() |>
             # ensuring there is no 0 or +Inf values
-            mutate(prob_ratio = ifelse(is.infinite(prob_ratio), ndraws(meta_gam), prob_ratio) ) |>
-            mutate(prob_ratio = ifelse(prob_ratio == 0, 1 / ndraws(meta_gam), prob_ratio) )
+            mutate(prob_ratio = pmin(prob_ratio, ndraws(meta_gam) ) ) |>
+            mutate(prob_ratio = pmax(prob_ratio, 1 / ndraws(meta_gam) ) ) |>
+            ungroup()
         
         # initialising empty dataframe
         temp_brms_results <- data.frame()
