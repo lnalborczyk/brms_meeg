@@ -1459,19 +1459,11 @@ This figure shows that, among the methods that performed best in the simulation 
 
 # Discussion
 
-In brief, our results show that the model-based approach we introduced outperforms conventional cluster-based methods in identifying the onset and offset of M/EEG effects. We first assessed the performance of this approach on simulated data allowing us to evaluate the method's ability to recover ground-truth onset and offset values. We then assessed its performance on actual MEG data, allowing us to assess its sensitivity to realistic data properties (subset similarity). Together, these results highlight desirable properties for any method aiming to precisely and reliably estimate the onset and offset of M/EEG effects: it should i) recover true onsets and offsets in simulation (good asymptotic behaviour), ii) identify clusters that are interpretable and consistent in empirical data, and iii) show sensitivity to subtle changes in the data. Our approach meets all three of these desiderata.
+In brief, our results show that the model-based approach we introduced outperforms conventional cluster-based methods in identifying the onset and offset of M/EEG effects. We first assessed the performance of this approach on simulated data, allowing us to evaluate the method's ability to recover ground-truth onset and offset values. We then assessed its performance on actual MEG data, allowing us to assess its sensitivity to realistic data properties (subset similarity). Together, these results highlight desirable properties for any method aiming to precisely and reliably estimate the onset and offset of M/EEG effects: it should i) recover true onsets and offsets in simulation (good asymptotic behaviour), ii) identify clusters that are interpretable and consistent in empirical data, and iii) show sensitivity to subtle changes in the data. Our approach meets all three of these desiderata.
 
 As with previous simulation studies [e.g., @rousselet2008; @sassenhagen2019], results inevitably depend on design choices, including the specific cluster-forming algorithm and threshold (for cluster-based methods), the signal-to-noise ratio, and the potential degradation of temporal resolution introduced by preprocessing steps such as low-pass filtering. However, these constraints apply equally to all methods tested, so relative differences in performance remain meaningful.
 
 Interestingly, the TFCE method performed worse than the traditional cluster-sum approach, consistent with the predictions of @rousselet_using_2025 based on the original findings of @smith2009. We also found a striking overlap in the clusters identified by the `Holm` and `TFCE` procedures (cf. @fig-onset-offset and @fig-splits-similarity). Whereas these two approaches are conceptually distinct; `Holm` controlling the family-wise error rate through sequential *p*-value adjustment, `TFCE` enhancing signal based on spatiotemporal support; their similarity in practice may arise because both effectively prioritise extended, moderately strong effects over isolated high-intensity points. This convergence warrants further methodological work.
-
-<!--
-
-We chose not to include the cluster-depth algorithm [@frossard2022], as prior work already shows its performance to be inferior to cluster-mass approaches in similar contexts [@rousselet_using_2025].
-
-To make this paragraph more concrete, can we reflect on our own method in this regard?
-
--->
 
 A critical requirement for any model-based approach is that the model must adequately capture the underlying data-generating process. Misspecified models are likely to produce biased or unreliable onset/offset estimates. This underscores the importance of thorough model diagnostics, including posterior predictive checks, fit assessments, and model comparison [@gelman2020]. An important and related methodological consideration concerns the selection of model hyperparameters, such as the number of basis functions and the threshold for posterior odds. Although our simulations suggest that these parameters influence the precision and reliability of onset and offset estimates, optimal values may vary depending on the signal's temporal dynamics and signal-to-noise characteristics. Future work could explore principled approaches to hyperparameter tuning, including cross-validation or fully Bayesian model selection using tools such as leave-one-out cross-validation (LOO-CV) or Bayes factors [@gelman2020]. We provide initial guidance in @apx-basis and advocate for future development of adaptive heuristics to support flexible yet parsimonious model specification.
 
@@ -1711,64 +1703,6 @@ timegen_data <- group_timegen_scores %>%
         ) %>%
     mutate(test_time = as.numeric(test_time) )
 ```
-
-<!--
-
-$$
-\begin{aligned}
-\text{AUC}_{i} &\sim \mathrm{Beta}(\mu_{i}, \phi)\\
-g(\mu_{i}) &= f \left(\text{train}_{i}, \text{test}_{i} \right)\\
-\end{aligned}
-$$
-
-\setlength{\parindent}{0pt}
-\setlength{\parskip}{6pt}
-
-where we assume that AUC values come from a $\mathrm{Beta}$ distribution with two parameters $\mu$ and $\phi$. We can think of $f \left(\text{train}_{i}, \text{test}_{i} \right)$ as a surface (a smooth function of two variables) that we can model using a 2-dimensional splines. Let $\mathbf{s}_{i} = \left(\text{train}_{i}, \text{test}_{i} \right)$ be some pair of training and testing samples, and let $\mathbf{k}_{m} = \left(\text{train}_{m}, \text{test}_{m} \right)$ denote the $m^{\text{th}}$ knot in the domain of $\text{train}_{i}$ and $\text{test}_{i}$. We can then express the smooth function as:
-
-$$
-f \left(\text{train}_{i}, \text{test}_{i} \right) = \alpha + \sum_{m=1}^M \beta_{m} b_{m} \left(\tilde{s}_{i}, \tilde{k}_{m} \right)
-$$
-
-\setlength{\parindent}{0pt}
-\setlength{\parskip}{6pt}
-
-A popular bivariate basis function uses *thin-plate splines* [@wood2003]. These splines are designed to interpolate and approximate smooth surfaces over two dimensions (hence the "bivariate" term). For $d=2$ dimensions and $l=2$ (smoothness penalty involving second order derivative):
-
-$$
-f \left(\tilde{s}_{i} \right) = \alpha + \beta_{1} x_{i} + \beta_{2} z_{i} +\sum_{m=1}^{M} \beta_{2+m} b_m\left(\tilde{s}_i, \tilde{k}_m\right)
-$$
-
-\setlength{\parindent}{0pt}
-\setlength{\parskip}{6pt}
-
-using the the radial basis function given by:
-
-$$
-b_m\left(\tilde{s}_i, \tilde{k}_m\right)=\left\|\tilde{s}_i-\tilde{k}_m\right\|^2 \log \left\|\tilde{s}_i-\tilde{k}_m\right\|
-$$
-
-\setlength{\parindent}{0pt}
-\setlength{\parskip}{6pt}
-
-where $\left\|\mathbf{s}_i-\mathbf{k}_{m}\right\|$ is the Euclidean distance between the covariate $\mathbf{s}_{i}$ and the knot location $\mathbf{k}_{m}$.
-
-$$
-\begin{aligned}
-\text{AUC}_{i} &\sim \mathrm{Beta} \left(\mu_{i}, \phi\right)\\
-\operatorname{logit} \left(\mu_{i} \right) &= \alpha + \sum_{k=1}^K b_{k} B_{k}\left(\text{train}_{i}, \text{test}_{i} \right)
-\end{aligned}
-$$
-
-$$
-\begin{aligned}
-\text{AUC}_{i} &\sim \mathrm{Beta} \left(\mu_{i}, \phi\right)\\
-\operatorname{logit} \left(\mu_{i} \right) &= \alpha + f \left(\text{train}_{i}, \text{test}_{i} \right)\\
-f \left(\text{train}_{i}, \text{test}_{i} \right) &\equiv \sum_{k=1}^K b_{k} B_{k}\left(\text{train}_{i}, \text{test}_{i} \right)
-\end{aligned}
-$$
-
--->
 
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{6pt}
