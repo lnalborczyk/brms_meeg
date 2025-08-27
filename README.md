@@ -12,7 +12,7 @@ The figure below shows a summary of the simulation results, revealing that the p
 
 ## Application to actual MEG data (time-resolved decoding)
 
-The figure below shows the group-level average decoding performance through time with onset and offset estimates for each method. Overall, this figure shows that both the `Raw p-value` and `FDR BH95` methods are extremely lenient, identifying clusters of above-chance decoding accuracy before the onset of the stimulus (false positive) and until the end of the trial. The `Change point` method seems to be the most conservative one, identifying a single cluster spanning from approximately +60ms to +450ms. The `Holm`, `Cluster mass`, `TFCE`, and `BGAM` methods produce similar estimates of onset and offset, ranging from approximately +60ms to +650ms (considering only the first and last identified timesteps), although the `BGAM` method seems to result in fewer clusters.
+The figure below shows the group-level average decoding performance through time with onset and offset estimates for each method. Overall, this figure shows that both the `Raw p-value` and `FDR BH95` methods are extremely lenient, identifying clusters of above-chance decoding accuracy before the onset of the stimulus (false positive) and until the end of the trial. The `Holm`, `Cluster mass`, `TFCE`, and `BGAM` methods produce similar estimates of onset and offset, ranging from approximately +60ms to +650ms (considering only the first and last identified timesteps), although the `Cluster mass` and `BGAM` methods seems to result in fewer clusters.
 
 ![MEG data](manuscript_files/figure-pdf/fig-onset-offset-1.png)
 
