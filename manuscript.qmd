@@ -21,7 +21,7 @@ author:
 author-note:
   disclosures:
     conflict-of-interest: "The authors have no conflicts of interest to disclose."
-abstract: "Time-resolved electrophysiological measurements such as those obtained through magneto- and electroencephalography (M/EEG) offer a unique window onto the neural activity underlying cognitive processes. Researchers are often interested in determining whether and when these signals differ across experimental conditions or participant groups. The conventional approach involves mass-univariate statistical testing across time and space followed by corrections for multiple comparisons or some form of cluster-based inference. While effective for controlling error rates at the cluster-level, cluster-based inference comes with a significant limitation: by shifting the focus of inference from individual time points to clusters, it prevents drawing conclusions about the precise onset or offset of observed effects. Here, we present a *model-based* alternative for analysing M/EEG timeseries, such as event-related potentials or time-resolved decoding accuracy. Our approach leverages Bayesian generalised additive multilevel models, providing posterior odds that an effect exceeds zero (or chance) at each time point, while naturally accounting for temporal dependencies and between-subject variability. Using both simulated and empirical M/EEG datasets, we show that this approach substantially outperforms conventional methods in estimating the onset and offset of neural effects, yielding more precise and reliable estimates. We provide an open-source R package implementing the method and describe how it can be integrated into M/EEG analysis pipelines using MNE-Python."
+abstract: "Time-resolved electrophysiological measurements such as those obtained through magneto- and electroencephalography (M/EEG) offer a unique window onto the neural activity underlying cognitive processes. Researchers are often interested in determining whether and when these signals differ across experimental conditions or participant groups. The conventional approach involves mass univariate statistical testing across time and space followed by corrections for multiple comparisons or some form of cluster-based inference. While effective for controlling error rates at the cluster-level, cluster-based inference comes with a significant limitation: by shifting the focus of inference from individual time points to clusters, it prevents drawing conclusions about the precise onset or offset of observed effects. Here, we present a *model-based* alternative for analysing M/EEG timeseries, such as event-related potentials or time-resolved decoding accuracy. Our approach leverages Bayesian generalised additive multilevel models, providing posterior odds that an effect exceeds zero (or chance) at each time point, while naturally accounting for temporal dependencies and between-subject variability. Using both simulated and empirical M/EEG datasets, we show that this approach substantially outperforms conventional methods in estimating the onset and offset of neural effects, yielding more precise and reliable estimates. We provide an open-source R package implementing the method and describe how it can be integrated into M/EEG analysis pipelines using MNE-Python."
 keywords: [EEG, MEG, cluster-based inference, multiple comparisons, generalised additive models, mixed-effects models, multilevel models, Bayesian statistics, brms]
 floatsintext: true
 numbered-lines: true
@@ -110,9 +110,9 @@ pkrt_set(pkg = "the `R` package `:pkg` v :ver [:ref]")
 
 ## Problem statement
 
-Understanding the temporal dynamics of cognitive processes requires methods that can capture fast-changing neural activity with high temporal resolution. Magnetoencephalography and electroencephalography (M/EEG) are two such methods, widely used in cognitive neuroscience for their ability to track brain activity at the millisecond scale. These techniques provide rich time series data that reflect how neural responses unfold in response to stimuli or tasks. A central goal in many M/EEG studies is to determine whether, when, and where neural responses differ across experimental conditions or groups.
+Understanding the temporal dynamics of cognitive processes requires methods that can capture fast-changing neural activity with high temporal resolution. Magnetoencephalography and electroencephalography (M/EEG) are two such methods, widely used in cognitive neuroscience for their ability to track brain activity at the millisecond scale. These techniques provide rich timeseries data that reflect how neural responses unfold in response to stimuli or tasks. A central goal in many M/EEG studies is to determine whether, when, and where neural responses differ across experimental conditions or groups.
 
-The conventional approach involves mass-univariate statistical testing through time and/or space followed by some form of correction for multiple comparisons with the goal of maintaining the familywise error rate (FWER) or the false discovery rate (FDR) at the nominal level (e.g., 5%). Cluster-based inference is the most common way of achieving this sort of error control in the M/EEG literature, being the recommended approach in several software programs [e.g., `EEGlab`, @delorme2004; `MNE-Python`, @gramfort2013]. While effective for controlling error rates, cluster-based inference comes with a significant limitation: by shifting the focus of inference from individual datapoints (e.g., timesteps, sensors, voxels) to clusters, it prevents the ability to draw precise conclusions about the spatiotemporal localisation of such effects [@maris2007; @sassenhagen2019]. As pointed out by @maris2007: "there is a conflict between this interest in localized effects and our choice for a global null hypothesis: by controlling the FA [false alarm] rate under this global null hypothesis, one cannot quantify the uncertainty in the spatiotemporal localization of the effect". Even worse, @rosenblatt2018 note that cluster-based inference suffers from low spatial resolution: "Since discovering a cluster means that 'there exists at least one voxel with an evoked response in the cluster', and not that 'all the voxels in the cluster have an evoked response', it follows that the larger the detected cluster, the less information we have on the location of the activation." As a consequence, cluster-based inference is expected to perform poorly for identifying the onset of M/EEG effects; a property that was later demonstrated in simulation studies [e.g., @rousselet_using_2025; @sassenhagen2019].
+The conventional approach involves mass univariate statistical testing through time and/or space followed by some form of correction for multiple comparisons with the goal of maintaining the family-wise error rate (FWER) or the false discovery rate (FDR) at the nominal level (e.g., 5%). Cluster-based inference is the most common way of achieving this sort of error control in the M/EEG literature, being the recommended approach in several software programs [e.g., `EEGlab`, @delorme2004; `MNE-Python`, @gramfort2013]. While effective for controlling error rates, cluster-based inference comes with a significant limitation: by shifting the focus of inference from individual datapoints (e.g., timesteps, sensors, voxels) to clusters, it prevents the ability to draw precise conclusions about the spatiotemporal localisation of such effects [@maris2007; @sassenhagen2019]. As pointed out by @maris2007: "there is a conflict between this interest in localized effects and our choice for a global null hypothesis: by controlling the FA [false alarm] rate under this global null hypothesis, one cannot quantify the uncertainty in the spatiotemporal localization of the effect". Even worse, @rosenblatt2018 note that cluster-based inference suffers from low spatial resolution: "Since discovering a cluster means that 'there exists at least one voxel with an evoked response in the cluster', and not that 'all the voxels in the cluster have an evoked response', it follows that the larger the detected cluster, the less information we have on the location of the activation." As a consequence, cluster-based inference is expected to perform poorly for identifying the onset of M/EEG effects; a property that was later demonstrated in simulation studies [e.g., @rousselet_using_2025; @sassenhagen2019].
 
 To overcome the limitations of cluster-based inference, we introduce a novel *model-based* approach for precisely localising M/EEG effects in time, space, and other dimensions. The proposed approach, based on Bayesian generalised additive multilevel models, allows quantifying the posterior odds of effects being above chance at the level of timesteps, sensors, voxels, etc, while naturally taking into account spatiotemporal dependencies present in M/EEG data. We compare the performance of the proposed approach to well-established alternative methods using both simulated and actual M/EEG data and show that it significantly outperforms alternative methods in estimating the onset and offset of M/EEG effects.
 
@@ -134,13 +134,13 @@ To sum up, the main limitation of cluster-based inference is that it allows for 
 
 ## Previous work on modelling M/EEG data
 
-Scalp-recorded M/EEG signals capture neural activity originating from various brain regions and are often contaminated by artifacts unrelated to the cognitive processes under investigation. Consequently, analysing M/EEG data necessitates methods that can disentangle task-relevant neural signals from extraneous "noise." A widely adopted technique for this purpose is the estimation of event-related potentials (ERPs), which are stereotyped electrophysiological responses time-locked to specific sensory, cognitive, or motor events. Typically, ERPs are derived by averaging EEG or MEG epochs across multiple trials aligned to the event of interest (e.g., stimulus onset), thereby enhancing the signal-to-noise ratio by attenuating non-time-locked activity. However, this averaging approach has notable limitations: it assumes consistent latency and amplitude across trials and is primarily suited for simple categorical designs. Such assumptions may not hold in more complex experimental paradigms, potentially leading to suboptimal ERP estimations [e.g., @smith2014a].
+Scalp-recorded M/EEG signals capture neural activity originating from various brain regions and are often contaminated by artefacts unrelated to the cognitive processes under investigation. Consequently, analysing M/EEG data necessitates methods that can disentangle task-relevant neural signals from extraneous "noise." A widely adopted technique for this purpose is the estimation of event-related potentials (ERPs), which are stereotyped electrophysiological responses time-locked to specific sensory, cognitive, or motor events. Typically, ERPs are derived by averaging EEG or MEG epochs across multiple trials aligned to the event of interest (e.g., stimulus onset), thereby enhancing the signal-to-noise ratio by attenuating non-time-locked activity. However, this averaging approach has notable limitations: it assumes consistent latency and amplitude across trials and is primarily suited for simple categorical designs. Such assumptions may not hold in more complex experimental paradigms, potentially leading to suboptimal ERP estimations [e.g., @smith2014a].
 
-To overcome the limitations of simple averaging, several model-based approaches for estimating ERPs have been proposed. These methods are motivated by the observation that traditional ERP averaging is mathematically equivalent to fitting an intercept-only linear regression model in a simple categorical design without overlapping events [@smith2014a]. In contrast to simple averaging, regression-based approaches to ERP estimation offer substantially greater flexibility. Notably, they allow for the modelling of both linear and nonlinear effects of continuous predictors, such as word frequency or age [e.g., @smith2014a; @smith2014b; @tremblay2014], and enable the disentangling of overlapping cognitive processes [e.g., @ehinger_unfold_2019; @skukies_brain_2024; @skukies_modelling_2021]. One widely used implementation of this approach is provided by the LIMO EEG toolbox [@pernet2011], which follows a multi-stage analysis pipeline. First, a separate regression model is fit for each datapoint (e.g., each time point and electrode) at the individual participant level to estimate ERP responses. This is followed by group-level statistical analyses of the resulting regression coefficients, often accompanied by corrections for multiple comparisons or cluster-based inference [for recent applied examples, see @dunagan2025; @wüllhorst2025].
+To overcome the limitations of simple averaging, several model-based approaches for estimating ERPs have been proposed. These methods are motivated by the observation that traditional ERP averaging is mathematically equivalent to fitting an intercept-only linear regression model in a simple categorical design without overlapping events [@smith2014a]. In contrast to simple averaging, regression-based approaches to ERP estimation offer substantially greater flexibility. Notably, they allow for the modelling of both linear and nonlinear effects of continuous predictors, such as word frequency or age [e.g., @smith2014a; @smith2014b; @tremblay2014], and enable the disentangling of overlapping cognitive processes [e.g., @ehinger_unfold_2019; @skukies_brain_2024; @skukies_modelling_2021]. One widely used implementation of this approach is provided by the LIMO EEG toolbox [@pernet2011], which follows a multi-stage analysis pipeline. First, a separate regression model is fit for each datapoint (e.g., each time point and electrode) at the individual level to estimate ERP responses. This is followed by group-level statistical analyses of the resulting regression coefficients, often accompanied by corrections for multiple comparisons or cluster-based inference [for recent applied examples, see @dunagan2025; @wüllhorst2025].
 
 Although this framework allows for the inclusion of a wide range of predictors--both continuous and categorical, linear and nonlinear--it still has important limitations. First, fitting separate models for each datapoint ignores the spatiotemporal dependencies inherent in M/EEG data, potentially reducing statistical power and interpretability. Second, the subsequent group-level analyses typically do not account for hierarchical dependencies which could otherwise be addressed through multilevel modelling. Finally, because the output of this procedure is summarised by cluster-based inference, its conclusions remain subject to the limitations discussed in the previous section.
 
-Beyond modelling nonlinear effects of continuous predictors on ERP amplitudes, GAMs have been employed to capture the temporal dynamics of ERPs themselves, effectively modelling the shape of the waveform over time [@abugaber2023; @baayen2018; @meulman2015; @meulman2023]. This approach allows for the estimation of smooth, data-driven functions that characterise how neural responses evolve over time, offering a flexible alternative to traditional linear models. In the following section, we provide a brief introduction to GAMs, highlighting their applicability to M/EEG time series analysis and the advantages they offer over conventional methods.
+Beyond modelling nonlinear effects of continuous predictors on ERP amplitudes, GAMs have been employed to capture the temporal dynamics of ERPs themselves, effectively modelling the shape of the waveform over time [@abugaber2023; @baayen2018; @meulman2015; @meulman2023]. This approach allows for the estimation of smooth, data-driven functions that characterise how neural responses evolve over time, offering a flexible alternative to traditional linear models. In the following section, we provide a brief introduction to GAMs, highlighting their applicability to M/EEG timeseries analysis and the advantages they offer over conventional methods.
 
 ## Generalised additive models
 
@@ -323,7 +323,7 @@ p4 <- plot_model(df, gam_rand_smooth)
 (p1 | p2) / (p3 | p4) + plot_annotation(tag_levels = "A")
 ```
 
-A detailed treatment of the technical underpinnings of GAMs is beyond the scope of this article [see reference books such as @hastie2017; @wood2017]. However, it is worth emphasising that GAMs have been successfully applied to a wide range of time series data across the cognitive sciences, including pupillometry [e.g., @vanrij2019], articulography [e.g., @wieling2018], speech formant dynamics [e.g., @sóskuthy2021], neuroimaging data [e.g., @dinga2021], and event-related potentials [e.g., @abugaber2023; @baayen2018; @meulman2015; @meulman2023]. Their appeal for modelling M/EEG data lies in their ability to flexibly capture the complex shape of ERP waveforms without overfitting, through the use of smooth functions constrained by penalisation. Recent extensions, such as distributional GAMs [@rigby2005; @umlauf2018], allow researchers to model not only the mean structure but also the variance (or scale) and other distributional properties as functions of predictors, a feature that has proven useful in modelling neuroimaging data [e.g., @dinga2021]. Moreover, hierarchical or multilevel GAMs [@pedersen_hierarchical_2019] provide a principled way to account for the nested structure of M/EEG data (e.g., trials within participants), enabling the inclusion of varying intercepts, slopes, and smoothers (as illustrated in @fig-intro-gam\ignorespaces C-D). This approach mitigates the risk of overfitting and reduces the influence of outliers on smooth estimates [@baayen2020; @meulman2023].
+A detailed treatment of the technical underpinnings of GAMs is beyond the scope of this article [see reference books such as @hastie2017; @wood2017]. However, it is worth emphasising that GAMs have been successfully applied to a wide range of timeseries data across the cognitive sciences, including pupillometry [e.g., @vanrij2019], articulography [e.g., @wieling2018], speech formant dynamics [e.g., @sóskuthy2021], neuroimaging data [e.g., @dinga2021], and event-related potentials [e.g., @abugaber2023; @baayen2018; @meulman2015; @meulman2023]. Their appeal for modelling M/EEG data lies in their ability to flexibly capture the complex shape of ERP waveforms without overfitting, through the use of smooth functions constrained by penalisation. Recent extensions, such as distributional GAMs [@rigby2005; @umlauf2018], allow researchers to model not only the mean structure but also the variance (or scale) and other distributional properties as functions of predictors, a feature that has proven useful in modelling neuroimaging data [e.g., @dinga2021]. Moreover, hierarchical or multilevel GAMs [@pedersen_hierarchical_2019] provide a principled way to account for the nested structure of M/EEG data (e.g., trials within participants), enabling the inclusion of varying intercepts, slopes, and smoothers (as illustrated in @fig-intro-gam\ignorespaces C-D). This approach mitigates the risk of overfitting and reduces the influence of outliers on smooth estimates [@baayen2020; @meulman2023].
 
 ## Objectives
 
@@ -660,11 +660,11 @@ plot_post_test_ratio(model = meta_gam, threshold = 10)
 
 ### Comparing the onset/offset estimates across approaches
 
-We then compared the ability of the BGAM to accurately estimate the onset and offset of the ERP difference to other widely-used methods. First, we conducted mass-univariate t-tests (thus treating each timestep independently) and identified the onset and offset of the ERP difference as the first and last values crossing an arbitrary significance threshold ($\alpha = 0.05$). We then followed the same approach but after applying different forms of multiplicity correction to the $p$-values. We compared two methods that control the FDR [i.e., `BH95`, @benjamini1995; and `BY01`, @benjamini2001], one method that controls the FWER [i.e., Holm–Bonferroni method, @holm1979], and two cluster-based permutation methods [permutation with a single cluster-forming threshold and threshold-free cluster enhancement, `TFCE`, @smith2009]. The `BH95`, `BY01`, and `Holm` corrections were applied to the p-values using the `p.adjust()` function in `R`. The cluster-based inference was implemented using a cluster-sum statistic of squared $t$-values, as implemented in `MNE-Python` [@gramfort2013], called via `r pkrt("reticulate")`. We also compared these estimates to the onset and offset as estimated using the binary segmentation algorithm, as implemented in `r pkrt("changepoint")`, and applied directly to the squared $t$-values [as in @rousselet_using_2025].[^2] @fig-corrections illustrates the onsets and offsets estimated by each method on a single simulated dataset and shows that all methods systematically overestimate the true onset and underestimate the true offset. In addition, the `Raw p-value`, `FDR BH95`, and `FDR BY01` methods identify clusters well before the true onset and after the true offset.
+We then compared the ability of the BGAM to accurately estimate the onset and offset of the ERP difference to other widely-used methods. First, we conducted mass univariate t-tests (thus treating each timestep independently) and identified the onset and offset of the ERP difference as the first and last values crossing an arbitrary significance threshold ($\alpha = 0.05$). We then followed the same approach but after applying different forms of multiplicity correction to the $p$-values. We compared two methods that control the FDR [i.e., `BH95`, @benjamini1995; and `BY01`, @benjamini2001], one method that controls the FWER [i.e., Holm–Bonferroni method, @holm1979], and two cluster-based permutation methods [permutation with a single cluster-forming threshold and threshold-free cluster enhancement, `TFCE`, @smith2009]. The `BH95`, `BY01`, and `Holm` corrections were applied to the $p$-values using the `p.adjust()` function in `R`. The cluster-based inference was implemented using a cluster-sum statistic of squared $t$-values, as implemented in `MNE-Python` [@gramfort2013], called via `r pkrt("reticulate")`. We also compared these estimates to the onset and offset estimated using the binary segmentation algorithm, as implemented in `r pkrt("changepoint")`, and applied directly to the squared $t$-values [as in @rousselet_using_2025].[^2] @fig-corrections illustrates the onsets and offsets estimated by each method on a single simulated dataset and shows that all methods systematically overestimate the true onset and underestimate the true offset. In addition, the `Raw p-value`, `FDR BH95`, and `FDR BY01` methods identify clusters well before the true onset and after the true offset.
 
 [^2]: As in @rousselet_using_2025, we fixed the number of expected change points to two in the binary segmentation algorithm, thus producing always one cluster.
 
-```{r fig-corrections, echo = FALSE, results = "hide", fig.width = 8, fig.asp = 0.5, fig.cap = "Exemplary timecourse of squared t-values with true onset and offset (vertical black dashed lines) and onsets/offsets identified using the raw p-values, the corrected p-values (BH95, BY01, Holm), the cluster-based methods (Cluster mass, TFCE), or using the binary segmentation method (Change point)."}
+```{r fig-corrections, echo = FALSE, results = "hide", fig.width = 8, fig.asp = 0.5, fig.cap = "Exemplary timecourse of squared t-values with true onset and offset (vertical black dashed lines) and clusters identified using the raw p-values, the corrected p-values (BH95, BY01, Holm), the cluster-based methods (Cluster mass, TFCE), or using the binary segmentation method (Change point)."}
 # defining an arbitrary alpha threshold
 aath <- 0.05
 
@@ -775,7 +775,7 @@ tests_results %>%
 
 ### Simulation study
 
-To assess the accuracy of group-level onset and offset estimation, all methods were compared by computing the bias (defined as the mean difference between the estimated and true value of the onset/offset), mean absolute error (MAE), root mean square error (RMSE), and variance of onset/offset estimates from 10,000 simulated datasets. Following @rousselet_using_2025, each participant was assigned a random onset between 150 and 170ms. Whereas the present article focuses on one-dimensional signals (e.g., one M/EEG channel), we provide a 2D application in @apx-2D.
+To assess the accuracy of group-level onset and offset estimation, all methods were compared by computing the bias (defined as the mean difference between the estimated and true value of the onset/offset), mean absolute error (MAE), root mean square error (RMSE), and variance of onset/offset estimates from 10,000 simulated datasets. Following @rousselet_using_2025, each participant was assigned a random onset between 150 and 170ms. Whereas the present article focuses on one-dimensional signals (e.g., one M/EEG channel), we provide an application to 2D temporal data in @apx-2D.
 
 ## Results
 
@@ -1053,7 +1053,7 @@ sim_results_summary %>%
 
 ## Methods
 
-To complement the simulation study, we evaluated the performance of all methods on actual MEG data [@nalborczyk:inprep]. In this study, the authors conducted time-resolved multivariate pattern analysis (MVPA, also known as decoding) of MEG data recorded in 32 human participants during a reading task. As a result, the authors obtained a timecourse of decoding accuray (ROC AUC), bounded between 0 and 1, for each participant. To test whether the group-level average decoding accuracy was above chance (i.e., 0.5) at each timestep, we fitted a BGAM as introduced previously with a basis dimension $k=50$ and retained all timesteps exceeding a posterior odds of 20. To better distinguish signal from noise, we defined a region of practical equivalence [ROPE, @kruschke2017] as the upper 90% quantile of decoding performance during the baseline period (i.e., before stimulus onset). Although we chose a basis dimension of $k=50$, which seemed appropriate for the present data, this choice should be adapted according to the properties of the modelled data (e.g., signal-to-noise ratio, prior low-pass filtering, sampling rate) and should be assessed by the usual model checking tools (e.g., models comparison, posterior predictive checks, see @apx-basis).
+To complement the simulation study, we evaluated the performance of all methods on actual MEG data [@nalborczyk:inprep]. In this study, the authors conducted time-resolved multivariate pattern analysis (MVPA, also known as decoding) of MEG data recorded in 32 human participants during a reading task. As a result, the authors obtained a timecourse of decoding accuracy (ROC AUC), bounded between 0 and 1, for each participant. To test whether the group-level average decoding accuracy was above chance (i.e., 0.5) at each timestep, we fitted a BGAM as introduced previously with a basis dimension $k=50$ and retained all timesteps exceeding a posterior odds of 20. To better distinguish signal from noise, we defined a region of practical equivalence [ROPE, @kruschke2017] as the upper 90% quantile of decoding performance during the baseline period (i.e., before stimulus onset). Although we chose a basis dimension of $k=50$, which seemed appropriate for the present data, this choice should be adapted according to the properties of the modelled data (e.g., signal-to-noise ratio, prior low-pass filtering, sampling rate) and should be assessed by the usual model checking tools (e.g., models comparison, posterior predictive checks, see @apx-basis).
 
 ## Results
 
@@ -1321,7 +1321,7 @@ decoding_df %>%
     labs(x = "Time (s)", y = "Decoding accuracy (ROC AUC)", colour = NULL)
 ```
 
-We then assessed the sensitivity of the various methods using a form of permutation-based sensitivity study, which consisted of the following steps. First, we created a large number of split halves of the data, that is, subsets of the dataset containing only 16 out of 32 participants. For each possible pair of subsets, we have 16 possible levels of overlap/similarity that can be quantified using the Jaccard index, ranging from 0 (perfectly disjoints subsets) to $\approx0.88$ (identical subsets except one participant). For each of these 16 levels of Jaccard similarity, we created 1,000 pairs of subsets, resulting in 16,000 pairs of subsets in total. For each of these pairs, we estimated the onset and offset according to each method and computed the absolute difference in onset/offset estimates. Finally, we estimated the Spearman's rank correlation coefficient (which quantifies the strength of a monotonic relation between two variables) between the Jaccard similarity and the absolute difference in onset/offset estimates. The rational for this procedure is that sensitive methods should produce similar onset/offset estimates for similar subsets and dissimilar onset/offset estimates for dissimilar subsets. The results of this procedure are summarised in @fig-splits-similarity.
+We then assessed the sensitivity of all methods using a form of permutation-based sensitivity study, which consisted of the following steps. First, we created a large number of split halves of the data, that is, subsets of the dataset containing only 16 out of 32 participants. For each possible pair of subsets, we have 16 possible levels of overlap that can be quantified using the Jaccard index, ranging from 0 (perfectly disjoints subsets) to $\approx0.88$ (identical subsets except one participant). For each of these 16 levels of Jaccard similarity, we created 1,000 pairs of subsets, resulting in 16,000 pairs of subsets in total. For each of these pairs, we estimated the onset and offset according to each method and computed the absolute difference in onset/offset estimates. Finally, we estimated the Spearman's rank correlation coefficient (which quantifies the strength of a monotonic relation between two variables) between the Jaccard similarity and the absolute difference in onset/offset estimates. The rational for this procedure is that sensitive methods should produce similar onset/offset estimates for similar subsets and dissimilar onset/offset estimates for dissimilar subsets. The results of this procedure are summarised in @fig-splits-similarity.
 
 ```{r fig-splits-similarity, eval = TRUE, echo = FALSE, fig.width = 12, fig.asp = 0.6, fig.cap = "Relation between data subsets' dissimilarity (x-axis) and difference in onset (blue) and offset (orange) estimates (y-axis) according to each method."}
 # reading splits list directly
@@ -1593,117 +1593,6 @@ timegen_data %>%
     labs(x = "Testing time (s)", y = "Training time (s)")
 ```
 
-```{r mne-timegen, eval = FALSE, echo = FALSE}
-# defining the function in R (it will be executed in Python)
-mne_timegen <- function (X, labels, ncores = 8) {
-    
-    # converting R dataframe to NumPy array (reshaping if needed)
-    # X should be a matrix before conversion
-    X_np <- np$array(X)
-    
-    if (length(dim(X_np) ) == 2) {
-
-        # adding a second dimension (channels) if missing
-        X_np <- np$expand_dims(X_np, axis = as.integer(1) )
-
-    }
-  
-    # defining the classifier
-    clf <- sklearn$linear_model$LogisticRegression(solver = "liblinear")
-    
-    # sliding the estimator on all time frames
-    time_gen <- mne$decoding$GeneralizingEstimator(
-        clf,
-        n_jobs = as.integer(ncores),
-        scoring = "roc_auc",
-        verbose = FALSE
-        )
-    
-    # or using N-fold cross-validation
-    scores <- mne$decoding$cross_val_multiscore(
-        time_gen,
-        X_np,
-        labels,
-        cv = as.integer(4),
-        n_jobs = as.integer(ncores),
-        verbose = FALSE
-        )
-    
-    # returning the scores
-    return (scores)
-    
-}
-
-# listing all participants
-participants <- unique(raw_df$participant)
-
-# initialising empty decoding results
-group_timegen_scores <- data.frame()
-
-# running decoding for each participant
-for (ppt in participants) {
-    
-    # printing progress
-    print(ppt)
-    
-    # retrieve data from one participant
-    ppt_data <- raw_df %>%
-        filter(participant == ppt) %>%
-        select(-participant) %>%
-        pivot_wider(names_from = time, values_from = eeg) %>%
-        select(-condition, -trial)
-        
-    # extracting the labels
-    labels <- raw_df %>%
-        filter(participant == ppt) %>%
-        select(-participant) %>%
-        pivot_wider(names_from = time, values_from = eeg) %>%
-        pull(condition) %>%
-        as.numeric()
-    
-    # extracting the timesteps
-    timesteps <- raw_df %>%
-        filter(participant == ppt) %>%
-        select(-participant) %>%
-        pull(time) %>%
-        unique()
-    
-    # running the decoding
-    timegen_scores <- mne_timegen(
-        X = ppt_data,
-        labels = labels-1
-        )
-    
-    # computing the average over CV folds
-    # a <- timegen_scores %>%
-    #     apply(MARGIN = c(2, 3), FUN = mean) %>%
-    #     data.frame()
-    timegen_scores <- data.frame(np$mean(timegen_scores, axis = as.integer(0) ) )
-    
-    # sanity check
-    # image(as.matrix(timegen_scores) )
-    
-    # appending to previous results
-    group_timegen_scores <- bind_rows(group_timegen_scores, timegen_scores)
-    
-}
-
-# saving the scores
-saveRDS(object = group_timegen_scores, file = "results/timegen_scores.rds")
-
-# reshaping the data
-colnames(group_timegen_scores) <- unique(raw_df$time)
-timegen_data <- group_timegen_scores %>%
-    mutate(participant = rep(x = participants, each = n_distinct(raw_df$time) ) ) %>%
-    mutate(train_time = rep(x = unique(raw_df$time), times = length(participants) ) ) %>%
-    pivot_longer(
-        cols = -c(participant, train_time),
-        names_to = "test_time",
-        values_to = "auc"
-        ) %>%
-    mutate(test_time = as.numeric(test_time) )
-```
-
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{6pt}
 
@@ -1743,6 +1632,22 @@ timegen_gam <- brm(
     stan_model_args = list(stanc_options = list("O1") ),
     file = "models/timegen_gam_meg_t2_k30_full.rds"
     )
+
+# gaussian alternative
+# timegen_gam <- brm(
+#     # 2D thin-plate spline (tp) with full penalties
+#     auc ~ t2(train_time, test_time, bs = "tp", k = 30, full = TRUE),
+#     data = timegen_data,
+#     family = gaussian(),
+#     warmup = 1000,
+#     iter = 5000,
+#     chains = 8,
+#     cores = 8,
+#     control = list(adapt_delta = 0.95, max_treedepth = 15),
+#     backend = "cmdstanr",
+#     stan_model_args = list(stanc_options = list("O1") ),
+#     file = "models/timegen_gam_meg_t2_k30_full_gaussian.rds"
+#     )
 ```
 
 ```{r gam-timegen-show, eval = FALSE, echo = TRUE, results = "hide"}
@@ -1896,7 +1801,7 @@ There is no universal recommendation for choosing the optimal value of `k`, as i
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{6pt}
 
-@fig-choose-k presents the posterior predictions and two forms of posterior predictive checks (PPCs) for each GAM fit using different numbers of basis functions ($k \in \{5, 10, 20, 40, 80\}$). With the exception of the $k=5$ model, all other fits yield satisfactory PPCs, indicating that the predicted data closely resemble the empirical observations. However, model comparison using the leave-one-out information crtierio (LOOIC), as summarised in @tbl-simulation-results, identifies the $k=40$ model as the best-performing one in terms of LOOIC, closely followed by the $k=80$ model. This suggests that the optimal number of basis functions likely lies between these two values. Future simulation studies could further investigate how such model selection criteria relate to the precision of onset and offset estimates.
+@fig-choose-k presents the posterior predictions and two forms of posterior predictive checks (PPCs) for each GAM fit using different numbers of basis functions ($k \in \{5, 10, 20, 40, 80\}$). With the exception of the $k=5$ model, all other fits yield satisfactory PPCs, indicating that the predicted data closely resemble the empirical observations. However, model comparison using the leave-one-out information criterion (LOOIC), as summarised in @tbl-simulation-results, identifies the $k=40$ model as the best-performing one in terms of LOOIC, closely followed by the $k=80$ model. This suggests that the optimal number of basis functions likely lies between these two values. Future simulation studies could further investigate how such model selection criteria relate to the precision of onset and offset estimates.
 
 ```{r fig-choose-k1, results = "hide", echo = FALSE, fig.width = 10, fig.asp = 1.25, fig.cap = "Posterior predictions and posterior predictive checks for the GAM with varying k (in rows)."}
 # defining a list of possible k values
@@ -2083,7 +1988,7 @@ library(neurogam)
 # performance and the size of the dataset)...
 gam_onset_offset <- testing_through_time(
     # dataframe with M/EEG data in long format
-    data = raw_df,
+    data = df,
     # the *_id arguments are used to specify the relevant columns in data 
     participant_id = "participant", meeg_id = "eeg",
     time_id = "time", predictor_id = "condition",
@@ -2107,36 +2012,6 @@ gam_onset_offset$clusters
 \setlength{\parskip}{6pt}
 
 The `neurogam` package can also be called from `Python` using the `rpy2` module, and can easily be integrated into `MNE-Python` pipelines. For example, we use it below to estimate the onset and offset of effects for one EEG channel from an MNE evoked object. The code used to reshape the `sample MNE` dataset is available in the online supplementary materials, and we further refer to the [MNE documentation](https://mne.tools/stable/auto_tutorials/epochs/50_epochs_to_data_frame.html) about converting `MNE` epochs to `Pandas` dataframes in long format (i.e., with one observation per row).
-
-```{python, eval = FALSE, echo = TRUE}
-# loading the Python modules
-import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
-from rpy2.robjects import pandas2ri
-from rpy2.robjects.conversion import localconverter
-
-# importing the "neurogam" R package
-neurogam = importr("neurogam")
-
-# activating automatic pandas-R conversion
-pandas2ri.activate()
-
-# assuming reshaped_df is some M/EEG data reshaped in long format
-with localconverter(robjects.default_converter + pandas2ri.converter):
-    
-    reshaped_df_r = robjects.conversion.py2rpy(reshaped_df)
-    
-
-# using the testing_through_time() function from the neurogam R package
-gam_onset_offset = neurogam.testing_through_time(
-    data=reshaped_df_r,
-    threshold=20,
-    multilevel=False
-    )
-
-# displaying the results
-print(list(gam_onset_offset) )
-```
 
 ```{python, eval = FALSE, echo = FALSE}
 # loading the Python modules
@@ -2190,4 +2065,34 @@ reshaped_df = reshape_eeg_channels_as_participants(
     evokeds=[faces, scrambled],
     condition_labels=["faces", "scrambled"]
     )
+```
+
+```{python, eval = FALSE, echo = TRUE}
+# loading the Python modules
+import rpy2.robjects as robjects
+from rpy2.robjects.packages import importr
+from rpy2.robjects import pandas2ri
+from rpy2.robjects.conversion import localconverter
+
+# importing the "neurogam" R package
+neurogam = importr("neurogam")
+
+# activating automatic pandas-R conversion
+# pandas2ri.activate()
+
+# assuming reshaped_df is some M/EEG data reshaped in long format
+with localconverter(robjects.default_converter + pandas2ri.converter):
+    
+    reshaped_df_r = robjects.conversion.py2rpy(reshaped_df)
+    
+
+# using the testing_through_time() function from the neurogam R package
+gam_onset_offset = neurogam.testing_through_time(
+    data=reshaped_df_r,
+    threshold=20,
+    multilevel=False
+    )
+
+# displaying the results
+print(list(gam_onset_offset) )
 ```

@@ -240,7 +240,7 @@ obtained through magneto- and electroencephalography (M/EEG) offer a
 unique window onto the neural activity underlying cognitive processes.
 Researchers are often interested in determining whether and when these
 signals differ across experimental conditions or participant groups. The
-conventional approach involves mass-univariate statistical testing
+conventional approach involves mass univariate statistical testing
 across time and space followed by corrections for multiple comparisons
 or some form of cluster-based inference. While effective for controlling
 error rates at the cluster-level, cluster-based inference comes with a
@@ -395,14 +395,14 @@ methods that can capture fast-changing neural activity with high
 temporal resolution. Magnetoencephalography and electroencephalography
 (M/EEG) are two such methods, widely used in cognitive neuroscience for
 their ability to track brain activity at the millisecond scale. These
-techniques provide rich time series data that reflect how neural
+techniques provide rich timeseries data that reflect how neural
 responses unfold in response to stimuli or tasks. A central goal in many
 M/EEG studies is to determine whether, when, and where neural responses
 differ across experimental conditions or groups.
 
-The conventional approach involves mass-univariate statistical testing
+The conventional approach involves mass univariate statistical testing
 through time and/or space followed by some form of correction for
-multiple comparisons with the goal of maintaining the familywise error
+multiple comparisons with the goal of maintaining the family-wise error
 rate (FWER) or the false discovery rate (FDR) at the nominal level
 (e.g., 5\%). Cluster-based inference is the most common way of achieving
 this sort of error control in the M/EEG literature, being the
@@ -553,7 +553,7 @@ precisely estimate the onset and offset of M/EEG effects.
 data}\label{previous-work-on-modelling-meeg-data}
 
 Scalp-recorded M/EEG signals capture neural activity originating from
-various brain regions and are often contaminated by artifacts unrelated
+various brain regions and are often contaminated by artefacts unrelated
 to the cognitive processes under investigation. Consequently, analysing
 M/EEG data necessitates methods that can disentangle task-relevant
 neural signals from extraneous ``noise.'' A widely adopted technique for
@@ -590,8 +590,8 @@ widely used implementation of this approach is provided by the LIMO EEG
 toolbox (\citeproc{ref-pernet2011}{Pernet et al., 2011}), which follows
 a multi-stage analysis pipeline. First, a separate regression model is
 fit for each datapoint (e.g., each time point and electrode) at the
-individual participant level to estimate ERP responses. This is followed
-by group-level statistical analyses of the resulting regression
+individual level to estimate ERP responses. This is followed by
+group-level statistical analyses of the resulting regression
 coefficients, often accompanied by corrections for multiple comparisons
 or cluster-based inference (for recent applied examples, see
 \citeproc{ref-dunagan2025}{Dunagan et al., 2025};
@@ -618,8 +618,9 @@ time (\citeproc{ref-abugaber2023}{Abugaber et al., 2023};
 estimation of smooth, data-driven functions that characterise how neural
 responses evolve over time, offering a flexible alternative to
 traditional linear models. In the following section, we provide a brief
-introduction to GAMs, highlighting their applicability to M/EEG time
-series analysis and the advantages they offer over conventional methods.
+introduction to GAMs, highlighting their applicability to M/EEG
+timeseries analysis and the advantages they offer over conventional
+methods.
 
 \subsection{Generalised additive
 models}\label{generalised-additive-models}
@@ -690,7 +691,7 @@ A detailed treatment of the technical underpinnings of GAMs is beyond
 the scope of this article (see reference books such as
 \citeproc{ref-hastie2017}{Hastie \& Tibshirani, 2017};
 \citeproc{ref-wood2017}{Wood, 2017a}). However, it is worth emphasising
-that GAMs have been successfully applied to a wide range of time series
+that GAMs have been successfully applied to a wide range of timeseries
 data across the cognitive sciences, including pupillometry (e.g.,
 \citeproc{ref-vanrij2019}{Rij et al., 2019}), articulography (e.g.,
 \citeproc{ref-wieling2018}{Wieling, 2018}), speech formant dynamics
@@ -864,7 +865,7 @@ approaches}\label{comparing-the-onsetoffset-estimates-across-approaches}
 
 We then compared the ability of the BGAM to accurately estimate the
 onset and offset of the ERP difference to other widely-used methods.
-First, we conducted mass-univariate t-tests (thus treating each timestep
+First, we conducted mass univariate t-tests (thus treating each timestep
 independently) and identified the onset and offset of the ERP difference
 as the first and last values crossing an arbitrary significance
 threshold (\(\alpha = 0.05\)). We then followed the same approach but
@@ -878,16 +879,16 @@ cluster-based permutation methods (permutation with a single
 cluster-forming threshold and threshold-free cluster enhancement,
 \texttt{TFCE}, \citeproc{ref-smith2009}{S. Smith \& Nichols, 2009}). The
 \texttt{BH95}, \texttt{BY01}, and \texttt{Holm} corrections were applied
-to the p-values using the \texttt{p.adjust()} function in \texttt{R}.
-The cluster-based inference was implemented using a cluster-sum
-statistic of squared \(t\)-values, as implemented in \texttt{MNE-Python}
-(\citeproc{ref-gramfort2013}{Gramfort, 2013}), called via the \texttt{R}
-package \texttt{reticulate} v 1.42.0 (\citeproc{ref-reticulate}{Ushey et
-al., 2024}). We also compared these estimates to the onset and offset as
-estimated using the binary segmentation algorithm, as implemented in the
-\texttt{R} package \texttt{changepoint} v 2.3
-(\citeproc{ref-changepoint}{Killick et al., 2022}), and applied directly
-to the squared \(t\)-values (as in
+to the \(p\)-values using the \texttt{p.adjust()} function in
+\texttt{R}. The cluster-based inference was implemented using a
+cluster-sum statistic of squared \(t\)-values, as implemented in
+\texttt{MNE-Python} (\citeproc{ref-gramfort2013}{Gramfort, 2013}),
+called via the \texttt{R} package \texttt{reticulate} v 1.42.0
+(\citeproc{ref-reticulate}{Ushey et al., 2024}). We also compared these
+estimates to the onset and offset estimated using the binary
+segmentation algorithm, as implemented in the \texttt{R} package
+\texttt{changepoint} v 2.3 (\citeproc{ref-changepoint}{Killick et al.,
+2022}), and applied directly to the squared \(t\)-values (as in
 \citeproc{ref-rousselet_using_2025}{Rousselet, 2025}).\footnote{As in
   Rousselet (\citeproc{ref-rousselet_using_2025}{2025}), we fixed the
   number of expected change points to two in the binary segmentation
@@ -902,10 +903,10 @@ well before the true onset and after the true offset.
 \begin{figure}[!htb]
 
 \caption{\label{fig-corrections}Exemplary timecourse of squared t-values
-with true onset and offset (vertical black dashed lines) and
-onsets/offsets identified using the raw p-values, the corrected p-values
-(BH95, BY01, Holm), the cluster-based methods (Cluster mass, TFCE), or
-using the binary segmentation method (Change point).}
+with true onset and offset (vertical black dashed lines) and clusters
+identified using the raw p-values, the corrected p-values (BH95, BY01,
+Holm), the cluster-based methods (Cluster mass, TFCE), or using the
+binary segmentation method (Change point).}
 
 \centering{
 
@@ -925,7 +926,8 @@ of onset/offset estimates from 10,000 simulated datasets. Following
 Rousselet (\citeproc{ref-rousselet_using_2025}{2025}), each participant
 was assigned a random onset between 150 and 170ms. Whereas the present
 article focuses on one-dimensional signals (e.g., one M/EEG channel), we
-provide a 2D application in \hyperref[apx-2D]{Appendix~A}.
+provide an application to 2D temporal data in
+\hyperref[apx-2D]{Appendix~A}.
 
 \subsection{Results}\label{results}
 
@@ -1010,9 +1012,9 @@ methods on actual MEG data (\citeproc{ref-nalborczyk:inprep}{Nalborczyk
 et al., in preparation}). In this study, the authors conducted
 time-resolved multivariate pattern analysis (MVPA, also known as
 decoding) of MEG data recorded in 32 human participants during a reading
-task. As a result, the authors obtained a timecourse of decoding accuray
-(ROC AUC), bounded between 0 and 1, for each participant. To test
-whether the group-level average decoding accuracy was above chance
+task. As a result, the authors obtained a timecourse of decoding
+accuracy (ROC AUC), bounded between 0 and 1, for each participant. To
+test whether the group-level average decoding accuracy was above chance
 (i.e., 0.5) at each timestep, we fitted a BGAM as introduced previously
 with a basis dimension \(k=50\) and retained all timesteps exceeding a
 posterior odds of 20. To better distinguish signal from noise, we
@@ -1059,13 +1061,13 @@ performance as identified by each method (data from
 
 \end{figure}%
 
-We then assessed the sensitivity of the various methods using a form of
+We then assessed the sensitivity of all methods using a form of
 permutation-based sensitivity study, which consisted of the following
 steps. First, we created a large number of split halves of the data,
 that is, subsets of the dataset containing only 16 out of 32
 participants. For each possible pair of subsets, we have 16 possible
-levels of overlap/similarity that can be quantified using the Jaccard
-index, ranging from 0 (perfectly disjoints subsets) to \(\approx0.88\)
+levels of overlap that can be quantified using the Jaccard index,
+ranging from 0 (perfectly disjoints subsets) to \(\approx0.88\)
 (identical subsets except one participant). For each of these 16 levels
 of Jaccard similarity, we created 1,000 pairs of subsets, resulting in
 16,000 pairs of subsets in total. For each of these pairs, we estimated
@@ -1904,7 +1906,7 @@ different numbers of basis functions (\(k \in \{5, 10, 20, 40, 80\}\)).
 With the exception of the \(k=5\) model, all other fits yield
 satisfactory PPCs, indicating that the predicted data closely resemble
 the empirical observations. However, model comparison using the
-leave-one-out information crtierio (LOOIC), as summarised in
+leave-one-out information criterion (LOOIC), as summarised in
 Table~\ref{tbl-simulation-results}, identifies the \(k=40\) model as the
 best-performing one in terms of LOOIC, closely followed by the \(k=80\)
 model. This suggests that the optimal number of basis functions likely
@@ -1974,7 +1976,7 @@ defaults.
 \CommentTok{\# performance and the size of the dataset)...}
 \NormalTok{gam\_onset\_offset }\OtherTok{\textless{}{-}} \FunctionTok{testing\_through\_time}\NormalTok{(}
     \CommentTok{\# dataframe with M/EEG data in long format}
-    \AttributeTok{data =}\NormalTok{ raw\_df,}
+    \AttributeTok{data =}\NormalTok{ df,}
     \CommentTok{\# the *\_id arguments are used to specify the relevant columns in data }
     \AttributeTok{participant\_id =} \StringTok{"participant"}\NormalTok{, }\AttributeTok{meeg\_id =} \StringTok{"eeg"}\NormalTok{,}
     \AttributeTok{time\_id =} \StringTok{"time"}\NormalTok{, }\AttributeTok{predictor\_id =} \StringTok{"condition"}\NormalTok{,}
@@ -2021,7 +2023,7 @@ dataframes in long format (i.e., with one observation per row).
 \NormalTok{neurogam }\OperatorTok{=}\NormalTok{ importr(}\StringTok{"neurogam"}\NormalTok{)}
 
 \CommentTok{\# activating automatic pandas{-}R conversion}
-\NormalTok{pandas2ri.activate()}
+\CommentTok{\# pandas2ri.activate()}
 
 \CommentTok{\# assuming reshaped\_df is some M/EEG data reshaped in long format}
 \ControlFlowTok{with}\NormalTok{ localconverter(robjects.default\_converter }\OperatorTok{+}\NormalTok{ pandas2ri.converter):}
