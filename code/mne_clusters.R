@@ -1,7 +1,7 @@
 ###########################################################
 # Split-half reliability of onset/offset estimates        #
 # Written by Ladislas Nalborczyk                          #
-# Contact: ladislas.nalborczyk@gmail.com                  #
+# Contact: ladislas.nalborczyk@cnrs.fr                    #
 # Last updated on March 31, 2025                          #
 ###########################################################
 

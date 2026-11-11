@@ -1,7 +1,7 @@
 ###########################################################
 # Defining some utility functions                         #
 # Written by Ladislas Nalborczyk                          #
-# Contact: ladislas.nalborczyk@gmail.com                  #
+# Contact: ladislas.nalborczyk@cnrs.fr                    #
 # Last updated on April 4, 2025                           #
 ###########################################################
 
@@ -116,132 +116,121 @@ find_clusters <- function (data, threshold = 10, above_threshold = TRUE) {
     
 }
 
-# defining the function in R (it will be executed in Python)
-freq_stats_cluster_matrix <- function (
-        X, timesteps,
-        cluster_type = c("mass", "tfce"),
-        alpha_level = 0.05,
-        verbose = FALSE
-        ) {
-    
-    # converting R matrix to NumPy array
+freq_stats_cluster_matrix <- function(
+    X,
+    timesteps,
+    cluster_type = c("mass", "tfce"),
+    alpha_level = 0.05,
+    n_permutations = 4096L,
+    seed = 123L,
+    tfce_start = 0,
+    tfce_step = 0.2,
+    verbose = FALSE
+    ) {
+
+    cluster_type <- match.arg(cluster_type)
+
+    X <- as.matrix(X)
+    storage.mode(X) <- "double"
+    timesteps <- as.numeric(timesteps)
+
+    if (length(dim(X)) != 2L) {
+        stop("X must be a two-dimensional observations-by-time matrix.")
+    }
+
+    if (nrow(X) < 2L) {
+        stop("X must contain at least two observations.")
+    }
+
+    if (ncol(X) != length(timesteps)) {
+        stop(
+            "ncol(X) = ", ncol(X),
+            " but length(timesteps) = ", length(timesteps), "."
+        )
+    }
+
+    if (any(!is.finite(X))) {
+        stop("X contains non-finite values.")
+    }
+
+    np <- reticulate::import("numpy", convert = FALSE)
+    mne <- reticulate::import("mne", convert = FALSE)
+
     X_np <- np$array(X, dtype = "float64")
-    
-    # sanity check
-    if (verbose) {message(print(X_np) )}
-    
-    # defining the type of cluster-based method to use
-    if (cluster_type == "mass") {
-        
-        threshold <- py_none()
-        
+
+    threshold_py <- if (cluster_type == "tfce") {
+        reticulate::dict(
+            start = as.numeric(tfce_start),
+            step = as.numeric(tfce_step)
+        )
     } else {
-        
-        threshold <- dict(start = 0, step = 0.2)
-        
+        reticulate::py_none()
     }
-    
-    # running the statistical test
-    # results <- mne$stats$spatio_temporal_cluster_1samp_test(
-    #     X = X_np,
-    #     out_type = "mask",
-    #     threshold = threshold,
-    #     n_permutations = as.integer(2^12),
-    #     n_jobs = as.integer(4),
-    #     verbose = TRUE
-    #     )
-    results <- tryCatch({
-        mne$stats$spatio_temporal_cluster_1samp_test(
-            X = X_np,
-            out_type = "mask",
-            threshold = threshold,
-            n_permutations = as.integer(2^12),
-            n_jobs = as.integer(1),
-            verbose = verbose
+
+    results <- mne$stats$permutation_cluster_1samp_test(
+        X = X_np,
+        threshold = threshold_py,
+        n_permutations = as.integer(n_permutations),
+        tail = as.integer(0),
+        out_type = "indices",
+        n_jobs = as.integer(1),
+        seed = as.integer(seed),
+        verbose = verbose
+    )
+
+    # Python tuple:
+    # T_obs, clusters, cluster_p_values, H0
+    clusters_py <- reticulate::py_get_item(results, 1L)
+
+    cluster_p_values <- reticulate::py_get_item(results, 2L) |>
+        reticulate::py_to_r() |>
+        as.numeric()
+
+    # Default corrected p-value outside identified clusters
+    pointwise_p_values <- rep(1, ncol(X))
+
+    if (length(cluster_p_values) > 0L) {
+
+        for (i in seq_along(cluster_p_values)) {
+
+            cluster_py <- reticulate::py_get_item(
+                clusters_py,
+                as.integer(i - 1L)
             )
-    }, error = function (e) {
-        message("Python error: ", e$message)
-        message(reticulate::py_last_error() )
-        return(NULL)
-    })
-    
-    if (is.null(results) ) {
-        message(reticulate::py_last_error() )
-        stop("Python function failed.")
-    }
-    
-    # sanity check
-    if (verbose) {message("Length of results: ", length(results) )}
-    
-    if (length(results) < 3) {
-        stop("Python function did not return 3 results as expected.")
-    }
-    
-    # extracting results
-    T_obs_ <- results[[1]]
-    clusters <- results[[2]]
-    p_values <- results[[3]]
-    
-    # retrieving significant clusters
-    if (cluster_type == "mass") {
-        
-        # using the first slice of the 3D array
-        p_values_ <- np$transpose(np$ones_like(X_np[1, , drop = FALSE]) )
-        
-        # defining the (main) cluster onset and offset
-        main_cluster_onset <- clusters[which(p_values < alpha_level)][[1]][[1]]$start+1
-        main_cluster_offset <- clusters[which(p_values < alpha_level)][[1]][[1]]$stop
-        
-        # old
-        # main_cluster_offset <- clusters[which(p_values < alpha_level)][[1]][[1]]$stop+1
-        
-        # assigning p-values to clusters
-        for (i in seq_along(clusters) ) {
-            
-            # retrieving the current cluster
-            cluster_mask <- clusters[[i]][[1]]
-            idx_start <- cluster_mask$start+1
-            idx_stop <- cluster_mask$stop
-            
-            # old
-            # idx_stop <- cluster_mask$stop+1
-            
-            # retrieving the p-value for this cluster
-            pval <- p_values[[i]]
-            
-            # assigning this p-value to timesteps belonging
-            # to the current cluster
-            p_values_[idx_start:idx_stop] <- pval
-            
+
+            indices_py <- reticulate::py_get_item(cluster_py, 0L)
+
+            # Python is zero-indexed; R is one-indexed
+            indices_r <- as.integer(
+                reticulate::py_to_r(indices_py)
+            ) + 1L
+
+            indices_r <- indices_r[
+                indices_r >= 1L &
+                indices_r <= ncol(X)
+            ]
+
+            if (length(indices_r) > 0L) {
+                pointwise_p_values[indices_r] <- pmin(
+                    pointwise_p_values[indices_r],
+                    cluster_p_values[i]
+                )
+            }
         }
-        
-        # converting back to a matrix
-        results_matrix <- as.matrix(np$squeeze(np$transpose(p_values_) ) )
-        
-    } else {
-        
-        # for TFCE
-        main_cluster_onset <- min(which(p_values < alpha_level) )
-        main_cluster_offset <- max(which(p_values < alpha_level) )
-        
-        # reshaping the results in a matrix
-        results_matrix <- as.matrix(np$squeeze(np$transpose(p_values) ) )
-        
     }
-    
-    # converting back to a dataframe if needed
-    results_df <- data.frame(
-        pval = results_matrix,
-        time = timesteps
-        ) %>%
-        mutate(
-            cluster_onset = time[main_cluster_onset],
-            cluster_offset = time[main_cluster_offset]
-            )
-    
-    # returning the results
-    return (results_df)
-    
+
+    if (
+        length(pointwise_p_values) != length(timesteps) ||
+        any(!is.finite(pointwise_p_values)) ||
+        any(pointwise_p_values < 0 | pointwise_p_values > 1)
+    ) {
+        stop("Invalid corrected p-values returned by MNE.")
+    }
+
+    tibble::tibble(
+        time = timesteps,
+        pval = pointwise_p_values
+    )
 }
 
 # defining a function which prints a message using shell echo; useful for printing messages from inside mclapply when running in Rstudio

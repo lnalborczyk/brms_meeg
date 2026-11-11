@@ -35,6 +35,6 @@ eeg_noise <- function (frames = 51, srate = 100, outvar = 1, meanpower) {
     out <- out / sd(out)
     out <- out * sqrt(outvar)
     
-    return(out)
+    return (out)
     
 }
