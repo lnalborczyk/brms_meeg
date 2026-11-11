@@ -16,9 +16,7 @@ We provide an open-source `R` package implementing the method and describe how i
 
 ## Main simulation results
 
-We evaluated the methods using simulated EEG data with a known temporal effect across four signal-to-noise ratio (SNR) levels.
-
-Performance was quantified using temporal intersection-over-union (IoU), which measures how closely the complete set of detected time points matches the true temporal extent of the effect, together with onset and offset bias, mean absolute error (MAE), root mean squared error (RMSE), and variability across simulations.
+We evaluated the methods using simulated EEG data with a known temporal effect across four signal-to-noise ratio (SNR) levels. Performance was quantified using temporal intersection-over-union (IoU), which measures how closely the complete set of detected time points matches the true temporal extent of the effect, together with onset and offset bias, mean absolute error (MAE), root mean squared error (RMSE), and variability across simulations.
 
 Across all SNR levels, the `BGAM` approach achieved the highest median temporal IoU, with the largest advantage at lower SNRs. It also provided comparatively accurate onset localisation. Offset localisation was more variable: BGAM showed low average offset error, but cluster-mass inference achieved lower offset RMSE in several conditions, indicating fewer large offset errors.
 
@@ -28,11 +26,9 @@ Overall, these results suggest that BGAM provides particularly accurate recovery
 
 ## Application to empirical MEG data
 
-We also applied the methods to empirical time-resolved MEG decoding data from 32 participants.
+We also applied the methods to empirical time-resolved MEG decoding data from 32 participants. The figure below shows the group-level average decoding performance over time together with the temporal intervals identified by each method.
 
-The figure below shows the group-level average decoding performance over time together with the temporal intervals identified by each method.
-
-The `Raw p-value` and `FDR BH95` procedures produced the most temporally extensive and fragmented detections, including intervals before stimulus onset and several late detections beyond the main decoding response. The more conservative multiplicity-corrected and cluster-based procedures (`FDR BY01`, `Holm`, `Cluster mass`, and `TFCE`) identified a broadly similar main period of above-chance decoding, beginning at approximately 50–60 ms, although some methods additionally yielded shorter later clusters.
+The `Raw p-value` and `FDR BH95` procedures produced the most temporally extensive and fragmented detections, including intervals before stimulus onset and several late detections beyond the main decoding response. The more conservative multiplicity-corrected and cluster-based procedures (`FDR BY01`, `Holm`, `Cluster mass`, and `TFCE`) identified a broadly similar main period of above-chance decoding, beginning at approximately 50-60 ms, although some methods additionally yielded shorter later clusters.
 
 In contrast, the `Change point` and `BGAM` procedures produced comparatively compact and contiguous temporal intervals.
 
@@ -54,9 +50,7 @@ These results provide a complementary assessment of empirical stability when the
 
 For users who are already familiar with `brms`, the recommended workflow is to import ERP, decoding, or other time-resolved M/EEG estimates into `R` and fit the model directly using the code provided in the manuscript and repository.
 
-Alternatively, the [`neurogam`](https://github.com/lnalborczyk/neurogam) R package provides higher-level functions implementing the same general workflow with sensible defaults.
-
-For example:
+Alternatively, the [`neurogam`](https://github.com/lnalborczyk/neurogam) R package provides higher-level functions implementing the same general workflow with sensible defaults. For example:
 
 ```r
 library(neurogam)
@@ -75,6 +69,4 @@ The framework can also be extended to multidimensional settings, including cross
 
 ## Software
 
-The method is implemented in the open-source [`neurogam`](https://github.com/lnalborczyk/neurogam) `R` package.
-
-The manuscript additionally provides examples of interoperability with `MNE-Python`, allowing M/EEG preprocessing to be performed in Python before carrying out model-based inference in `R`.
+The method is implemented in the open-source [`neurogam`](https://github.com/lnalborczyk/neurogam) `R` package. The manuscript additionally provides examples of interoperability with `MNE-Python`, allowing M/EEG preprocessing to be performed in Python before carrying out model-based inference in `R`.
