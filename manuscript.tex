@@ -941,14 +941,11 @@ directly. For each joint posterior draw of the time-varying condition
 contrast, we identified the earliest and latest time points at which
 \(\beta(t)\) exceeded the same SESOI, \(\delta\). Repeating this
 procedure across posterior draws yielded distributions of effect onset
-and offset (illustrated near the bottom of Panel C). Draws without any
-threshold exceedance were retained when estimating the posterior
-probability of an effect being present but excluded from the conditional
-distributions of onset and offset. This provides complementary
-information to the posterior-odds-based approach: whereas the latter
-identifies periods with sufficiently strong posterior evidence for an
-effect, the former characterises posterior uncertainty about the timing
-of its boundaries.
+and offset (illustrated near the bottom of Panel C). This provides
+complementary information to the posterior-odds-based approach: whereas
+the latter identifies periods with sufficiently strong posterior
+evidence for an effect, the former characterises posterior uncertainty
+about the timing of its boundaries.
 
 \begin{figure}[!htb]
 
@@ -1088,9 +1085,8 @@ deviation (SD) of the signed errors, all expressed in milliseconds.
 These simulations were designed to evaluate repeated-sampling
 temporal-recovery performance under fixed, controlled data-generating
 scenarios. They were not designed as a simulation-based calibration
-study: the generating parameters were not drawn from the fitted model's
-prior predictive distribution, and the results should therefore not be
-interpreted as evidence of prior or posterior calibration.
+study and the results should therefore not be interpreted as evidence of
+prior or posterior calibration.
 
 \subsection{Results}\label{results}
 
@@ -1336,7 +1332,7 @@ methods additionally yielded shorter, later clusters. In contrast, the
 \texttt{Change\ point} and \texttt{BGAM} procedures produced
 comparatively compact, contiguous intervals: the change-point interval
 extended from approximately +60 to +450 ms, while the BGAM detection
-covered a similar early period but endedearlier. Thus, the methods
+covered a similar early period but ended earlier. Thus, the methods
 agreed broadly on the onset of the main decoding effect but differed
 substantially in its estimated duration and in the degree of temporal
 fragmentation.
@@ -1346,7 +1342,7 @@ although stability varied substantially across methods. BGAM showed the
 greatest temporal overlap between halves (median IoU = 0.93), followed
 by cluster mass (0.87) and the change-point method (0.75); the remaining
 point-wise and multiplicity-corrected procedures yielded lower median
-overlap (0.60--0.72) (Figure~\ref{fig-reliability}A). BGAM also showed
+overlap (0.60-0.72) (Figure~\ref{fig-reliability}A). BGAM also showed
 the most stable cluster count, with the two halves yielding the same
 number of detected intervals in almost all split-half repetitions
 (Figure~\ref{fig-reliability}B). Cluster-count agreement was
@@ -1532,12 +1528,11 @@ package is available at \url{https://github.com/lnalborczyk/neurogam}.
 We used R v. 4.5.2 (\citeproc{ref-base}{R Core Team, 2025}) and the
 following R packages: MetBrewer v. 0.2.0
 (\citeproc{ref-MetBrewer}{Mills, 2022}), assertthat v. 0.2.1
-(\citeproc{ref-assertthat}{Wickham, 2019}), brms v. 2.23.0
+(\citeproc{ref-assertthat}{Wickham, 2019}), brms v. 2.23.2
 (\citeproc{ref-brms2017}{Bürkner, 2017}, \citeproc{ref-brms2018}{2018},
 \citeproc{ref-brms2021}{2021}), ggpubr v. 0.6.3
 (\citeproc{ref-ggpubr}{Kassambara, 2026}), ggrepel v. 0.9.8
-(\citeproc{ref-ggrepel}{Slowikowski, 2026}), ggridges v. 0.5.7
-(\citeproc{ref-ggridges}{Wilke, 2025}), glue v. 1.8.1
+(\citeproc{ref-ggrepel}{Slowikowski, 2026}), glue v. 1.8.1
 (\citeproc{ref-glue}{Hester \& Bryan, 2026}), grateful v. 0.3.0
 (\citeproc{ref-grateful}{Rodriguez-Sanchez \& Jackson, 2025}), gt v.
 1.3.0 (\citeproc{ref-gt}{Iannone et al., 2026}), knitr v. 1.52
@@ -2020,10 +2015,6 @@ additive mixed modeling: A tutorial focusing on articulatory differences
 between L1 and L2 speakers of English. \emph{Journal of Phonetics},
 \emph{70}, 86--116. \url{https://doi.org/10.1016/j.wocn.2018.03.002}
 
-\bibitem[\citeproctext]{ref-ggridges}
-Wilke, C. O. (2025). \emph{{ggridges}: Ridgeline plots in
-{``{ggplot2}''}}. \url{https://doi.org/10.32614/CRAN.package.ggridges}
-
 \bibitem[\citeproctext]{ref-wood2003}
 Wood, S. N. (2003). Thin Plate Regression Splines. \emph{Journal of the
 Royal Statistical Society Series B: Statistical Methodology},
@@ -2247,7 +2238,7 @@ used for inference.
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\CommentTok{\# fitting a GAM with two temporal dimensions}
+\CommentTok{\# Fit a GAM with two temporal dimensions}
 \NormalTok{timegen\_gam }\OtherTok{\textless{}{-}} \FunctionTok{brm}\NormalTok{(}
     \CommentTok{\# 2D thin{-}plate spline (tp) with full penalties}
 \NormalTok{    auc }\SpecialCharTok{\textasciitilde{}} \FunctionTok{t2}\NormalTok{(train\_time, test\_time, }\AttributeTok{bs =} \StringTok{"tp"}\NormalTok{, }\AttributeTok{k =} \DecValTok{30}\NormalTok{, }\AttributeTok{full =} \ConstantTok{TRUE}\NormalTok{),}

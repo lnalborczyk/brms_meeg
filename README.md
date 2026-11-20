@@ -66,7 +66,3 @@ gam_results <- testing_through_time(
 ```
 
 The framework can also be extended to multidimensional settings, including cross-temporal generalisation matrices and spatio-temporal M/EEG analyses.
-
-## Software
-
-The method is implemented in the open-source [`neurogam`](https://github.com/lnalborczyk/neurogam) `R` package. The manuscript additionally provides examples of interoperability with `MNE-Python`, allowing M/EEG preprocessing to be performed in Python before carrying out model-based inference in `R`.
